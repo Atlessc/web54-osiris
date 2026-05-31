@@ -144,7 +144,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   const derivedSignals: DerivedSignal[] = data.gdeltDerivedSignals || [];
 
   const hasCriticalNews = news.some((n: any) => normalizeRiskScore(n.risk_score) >= 8);
-  const hasCriticalSignals = derivedSignals.some((s) => s.severity === 'critical' || s.severity === 'high');
+  const hasCriticalSignals = derivedSignals.some(
+    (s) => s.severity === 'critical' || s.severity === 'high'
+  );
   const totalFeedItems = news.length + derivedSignals.length;
 
   return (
@@ -152,7 +154,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.6, duration: 0.6 }}
-      className="glass-panel flex flex-col overflow-hidden pointer-events-auto"
+      className="glass-panel flex flex-col overflow-visible pointer-events-auto shrink-0"
     >
       {/* Header */}
       <button
@@ -160,7 +162,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
         className="flex items-center justify-between px-4 py-3 hover:bg-[var(--hover-accent)] transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <Newspaper className="w-3.5 h-3.5 text-[var(--gold-primary)] flex-shrink-0" />
+          <Newspaper className="w-3.5 h-3.5 text-[var(--gold-primary)] shrink-0" />
 
           <span className="hud-text text-[12px] text-[var(--text-primary)]">
             SIGINT FEED
@@ -196,6 +198,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
 
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)] animate-osiris-pulse" />
+
           {expanded ? (
             <ChevronUp className="w-3 h-3 text-[var(--text-muted)]" />
           ) : (
@@ -205,15 +208,16 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
       </button>
 
       {/* Feed Body */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: 'auto' }}
-            exit={{ height: 0 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-visible"
           >
-            <div className="max-h-[500px] overflow-y-auto styled-scrollbar divide-y divide-[var(--border-secondary)]">
+            <div className="overflow-visible divide-y divide-[var(--border-secondary)]">
               {news.length === 0 && derivedSignals.length === 0 ? (
                 <div className="px-4 py-6 text-center">
                   <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-widest">
@@ -228,6 +232,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                       <div className="px-4 py-2 bg-[var(--bg-tertiary)] flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Radio className="w-3 h-3 text-[var(--cyan-primary)]" />
+
                           <span className="text-[9px] font-mono tracking-widest text-[var(--cyan-primary)]">
                             DERIVED WATCH CONDITIONS
                           </span>
@@ -242,7 +247,8 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                         const isSelected = selectedSignalIdx === i;
                         const severity = signal.severity || 'watch';
                         const confidence = signal.confidence || 'low';
-                        const evidenceCount = signal.evidenceCount || signal.relatedEventIds?.length || 0;
+                        const evidenceCount =
+                          signal.evidenceCount || signal.relatedEventIds?.length || 0;
                         const locationLabel = signal.location?.label || 'Unknown location';
                         const canLocate =
                           typeof signal.location?.lat === 'number' &&
@@ -265,7 +271,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                           >
                             {/* Signal top row */}
                             <div className="flex items-center gap-2 mb-1">
-                              <AlertTriangle className={`w-3 h-3 ${getSignalRiskClass(severity)}`} />
+                              <AlertTriangle
+                                className={`w-3 h-3 ${getSignalRiskClass(severity)}`}
+                              />
 
                               <span
                                 className={`text-[9px] font-mono font-bold tracking-widest ${getSignalRiskClass(
@@ -303,17 +311,22 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
 
                             {/* Signal title */}
                             <h4 className="text-[11px] text-[var(--text-primary)] leading-tight">
-                              {signal.title || `${severity.toUpperCase()} watch around ${locationLabel}`}
+                              {signal.title ||
+                                `${severity.toUpperCase()} watch around ${locationLabel}`}
                             </h4>
 
                             {/* Location + newest */}
                             <div className="mt-1 flex items-center gap-2 text-[8px] font-mono text-[var(--text-muted)]">
                               <span>{locationLabel}</span>
+
                               {signal.location?.precision && (
                                 <span>• {signal.location.precision}</span>
                               )}
+
                               {signal.newestPublishedAt && (
-                                <span className="ml-auto">{timeAgo(signal.newestPublishedAt)}</span>
+                                <span className="ml-auto">
+                                  {timeAgo(signal.newestPublishedAt)}
+                                </span>
                               )}
                             </div>
 
@@ -332,18 +345,21 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                             ) : null}
 
                             {/* Expanded signal details */}
-                            <AnimatePresence>
+                            <AnimatePresence initial={false}>
                               {isSelected && (
                                 <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="mt-2 overflow-hidden"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  transition={{ duration: 0.14 }}
+                                  className="mt-2 overflow-visible"
                                 >
                                   <div className="rounded border border-[var(--border-secondary)] bg-black/20 p-2 space-y-2">
                                     <div className="grid grid-cols-2 gap-2 text-[8px] font-mono">
                                       <div>
-                                        <span className="text-[var(--text-muted)]">AVG SEVERITY</span>
+                                        <span className="text-[var(--text-muted)]">
+                                          AVG SEVERITY
+                                        </span>
                                         <br />
                                         <span className={getSignalRiskClass(severity)}>
                                           {signal.averageSeverityScore ?? '—'}
@@ -351,7 +367,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                                       </div>
 
                                       <div>
-                                        <span className="text-[var(--text-muted)]">AVG CONFIDENCE</span>
+                                        <span className="text-[var(--text-muted)]">
+                                          AVG CONFIDENCE
+                                        </span>
                                         <br />
                                         <span className={getConfidenceClass(confidence)}>
                                           {signal.averageConfidenceScore ?? '—'}
@@ -359,7 +377,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                                       </div>
 
                                       <div>
-                                        <span className="text-[var(--text-muted)]">SOURCES</span>
+                                        <span className="text-[var(--text-muted)]">
+                                          SOURCES
+                                        </span>
                                         <br />
                                         <span className="text-[var(--text-primary)]">
                                           {signal.sources?.length || 0}
@@ -367,7 +387,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                                       </div>
 
                                       <div>
-                                        <span className="text-[var(--text-muted)]">EVIDENCE</span>
+                                        <span className="text-[var(--text-muted)]">
+                                          EVIDENCE
+                                        </span>
                                         <br />
                                         <span className="text-[var(--text-primary)]">
                                           {evidenceCount}
@@ -377,7 +399,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
 
                                     {signal.sources?.length ? (
                                       <div className="text-[8px] font-mono leading-relaxed">
-                                        <span className="text-[var(--text-muted)]">SOURCES</span>
+                                        <span className="text-[var(--text-muted)]">
+                                          SOURCES
+                                        </span>
                                         <br />
                                         <span className="text-[var(--text-primary)]">
                                           {truncateList(signal.sources, 4)}
@@ -387,7 +411,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
 
                                     {signal.matchedKeywords?.length ? (
                                       <div className="text-[8px] font-mono leading-relaxed">
-                                        <span className="text-[var(--text-muted)]">MATCHED TERMS</span>
+                                        <span className="text-[var(--text-muted)]">
+                                          MATCHED TERMS
+                                        </span>
                                         <br />
                                         <span className="text-[var(--gold-primary)]">
                                           {truncateList(signal.matchedKeywords, 8)}
@@ -395,32 +421,59 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                                       </div>
                                     ) : null}
 
-                                    {signal.knownFacts?.length ? (
+                                    {signal.keywordFamilies?.length ? (
                                       <div className="text-[8px] font-mono leading-relaxed">
-                                        <span className="text-[var(--text-muted)]">KNOWN FACTS</span>
+                                        <span className="text-[var(--text-muted)]">
+                                          KEYWORD FAMILIES
+                                        </span>
+                                        <br />
+                                        <span className="text-[var(--cyan-primary)]">
+                                          {truncateList(signal.keywordFamilies, 6)}
+                                        </span>
+                                      </div>
+                                    ) : null}
+
+                                    {signal.knownFacts?.length ? (
+                                      <div className="text-[8px] font-mono leading-relaxed whitespace-pre-line">
+                                        <span className="text-[var(--text-muted)]">
+                                          KNOWN FACTS
+                                        </span>
                                         <br />
                                         <span className="text-[var(--text-primary)]">
-                                          {signal.knownFacts.slice(0, 3).map((fact) => `• ${fact}`).join('\n')}
+                                          {signal.knownFacts
+                                            .slice(0, 3)
+                                            .map((fact) => `• ${fact}`)
+                                            .join('\n')}
                                         </span>
                                       </div>
                                     ) : null}
 
                                     {signal.inferredMeaning?.length ? (
-                                      <div className="text-[8px] font-mono leading-relaxed">
-                                        <span className="text-[var(--text-muted)]">INFERRED MEANING</span>
+                                      <div className="text-[8px] font-mono leading-relaxed whitespace-pre-line">
+                                        <span className="text-[var(--text-muted)]">
+                                          INFERRED MEANING
+                                        </span>
                                         <br />
                                         <span className="text-[var(--cyan-primary)]">
-                                          {signal.inferredMeaning.slice(0, 2).map((item) => `• ${item}`).join('\n')}
+                                          {signal.inferredMeaning
+                                            .slice(0, 2)
+                                            .map((item) => `• ${item}`)
+                                            .join('\n')}
                                         </span>
                                       </div>
                                     ) : null}
 
                                     {signal.uncertainty?.length ? (
-                                      <div className="text-[8px] font-mono leading-relaxed">
-                                        <span className="text-[var(--text-muted)]">UNCERTAINTY</span>
+                                      <div className="text-[8px] font-mono leading-relaxed whitespace-pre-line">
+                                        <span className="text-[var(--text-muted)]">
+                                          UNCERTAINTY
+                                        </span>
                                         <br />
                                         <span className="text-yellow-400/80">
-                                          {signal.uncertainty.slice(0, 3).map((item) => `• ${item}`).join('\n')}
+                                          {signal.uncertainty
+                                            .slice(0, 3)
+                                            .map((item) => `• ${item}`)
+                                            .join('\n')}
                                         </span>
                                       </div>
                                     ) : null}
@@ -438,6 +491,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                   <div className="px-4 py-2 bg-[var(--bg-tertiary)] flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Eye className="w-3 h-3 text-[var(--gold-primary)]" />
+
                       <span className="text-[9px] font-mono tracking-widest text-[var(--gold-primary)]">
                         LIVE NEWS INTEL
                       </span>
@@ -525,7 +579,8 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                           {/* Machine Assessment */}
                           {item.machine_assessment && (
                             <div className="mt-1.5 flex items-start gap-1.5 bg-red-950/20 border border-red-900/20 rounded px-2 py-1">
-                              <Zap className="w-2.5 h-2.5 text-red-400 flex-shrink-0 mt-0.5" />
+                              <Zap className="w-2.5 h-2.5 text-red-400 shrink-0 mt-0.5" />
+
                               <span className="text-[9px] font-mono text-red-400/80 leading-relaxed">
                                 {item.machine_assessment}
                               </span>
@@ -533,13 +588,14 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                           )}
 
                           {/* Expanded news details */}
-                          <AnimatePresence>
+                          <AnimatePresence initial={false}>
                             {isSelected && (
                               <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="mt-2 overflow-hidden"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.14 }}
+                                className="mt-2 overflow-visible"
                               >
                                 <div className="flex items-center gap-3">
                                   {item.link && (
