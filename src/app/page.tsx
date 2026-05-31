@@ -66,16 +66,31 @@ const UptimeClock = () => {
   const startTime = useRef(Date.now());
 
   useEffect(() => {
-    const iv = setInterval(() => {
-      const e = Math.floor((Date.now() - startTime.current) / 1000);
-      setUptime(
-        `${String(Math.floor(e / 3600)).padStart(2, '0')}:${String(
-          Math.floor((e % 3600) / 60)
-        ).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`
-      );
-    }, 1000);
+    let mounted = true;
 
-    return () => clearInterval(iv);
+    const tick = () => {
+      const e = Math.floor((Date.now() - startTime.current) / 1000);
+
+      const nextUptime = `${String(Math.floor(e / 3600)).padStart(2, '0')}:${String(
+        Math.floor((e % 3600) / 60)
+      ).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`;
+
+      if (!mounted) return;
+
+      setUptime((prev) => {
+        if (prev === nextUptime) return prev;
+        return nextUptime;
+      });
+    };
+
+    tick();
+
+    const iv = window.setInterval(tick, 1000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(iv);
+    };
   }, []);
 
   return (
@@ -85,20 +100,39 @@ const UptimeClock = () => {
   );
 };
 
+const getZuluTimeString = () => {
+  const now = new Date();
+
+  return `ZULU ${String(now.getUTCHours()).padStart(2, '0')}:${String(
+    now.getUTCMinutes()
+  ).padStart(2, '0')}:${String(now.getUTCSeconds()).padStart(2, '0')}Z`;
+};
+
 const ZuluClock = () => {
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    const iv = setInterval(() => {
-      const now = new Date();
-      setTime(
-        `ZULU ${String(now.getUTCHours()).padStart(2, '0')}:${String(
-          now.getUTCMinutes()
-        ).padStart(2, '0')}:${String(now.getUTCSeconds()).padStart(2, '0')}Z`
-      );
-    }, 1000);
+    let mounted = true;
 
-    return () => clearInterval(iv);
+    const tick = () => {
+      const nextTime = getZuluTimeString();
+
+      if (!mounted) return;
+
+      setTime((prev) => {
+        if (prev === nextTime) return prev;
+        return nextTime;
+      });
+    };
+
+    tick();
+
+    const iv = window.setInterval(tick, 1000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(iv);
+    };
   }, []);
 
   return (
@@ -152,35 +186,44 @@ export default function Dashboard() {
   const [backendStatus, setBackendStatus] = useState<'connecting' | 'connected' | 'error'>(
     'connecting'
   );
+
   const [mapView, setMapView] = useState({ zoom: 2.5, latitude: 20 });
+
   const [flyToLocation, setFlyToLocation] = useState<{
     lat: number;
     lng: number;
     ts: number;
   } | null>(null);
+
   const [globalStats, setGlobalStats] = useState<any>(null);
   const mouseCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const coordsDisplayRef = useRef<HTMLDivElement>(null);
+
   const [locationLabel, setLocationLabel] = useState('');
   const [regionDossier, setRegionDossier] = useState<any>(null);
   const [dossierLoading, setDossierLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [activeCamera, setActiveCamera] = useState<any>(null);
   const [spaceWeather, setSpaceWeather] = useState<any>(null);
+
   const [showLayers, setShowLayers] = useState(true);
   const [showMarkets, setShowMarkets] = useState(true);
   const [showScmPanel, setShowScmPanel] = useState(true);
   const [showIntel, setShowIntel] = useState(true);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
+
   const [mobilePanel, setMobilePanel] = useState<
     'layers' | 'markets' | 'intel' | 'search' | 'recon' | null
   >(null);
+
   const [mapProjection, setMapProjection] = useState<'globe' | 'mercator'>('globe');
   const [mapStyle, setMapStyle] = useState<'dark' | 'satellite'>('dark');
   const [sweepData, setSweepData] = useState<any>(null);
   const [scanTargets, setScanTargets] = useState<any[]>([]);
 
   const isMobile = useIsMobile();
+
   const geocodeCache = useRef<Map<string, string>>(new Map());
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastGeocodedPos = useRef<{ lat: number; lng: number } | null>(null);
@@ -230,7 +273,10 @@ export default function Dashboard() {
 
     if (!isNaN(lat) && !isNaN(lon)) {
       setFlyToLocation({ lat, lng: lon, ts: Date.now() });
-      if (!isNaN(zoom)) setMapView((v) => ({ ...v, zoom }));
+
+      if (!isNaN(zoom)) {
+        setMapView((v) => ({ ...v, zoom }));
+      }
     }
 
     const layers = p.get('layers');
@@ -240,9 +286,11 @@ export default function Dashboard() {
 
       setActiveLayers((prev) => {
         const next = { ...prev };
+
         Object.keys(next).forEach((k) => {
           (next as any)[k] = active.includes(k);
         });
+
         return next;
       });
     }
@@ -258,6 +306,7 @@ export default function Dashboard() {
 
     urlTimer.current = setTimeout(() => {
       const p = new URLSearchParams();
+
       p.set('lat', (mapView.latitude ?? 20).toFixed(4));
       p.set('lon', '0');
       p.set('zoom', mapView.zoom.toFixed(2));
@@ -343,7 +392,11 @@ export default function Dashboard() {
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json&zoom=10&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en' } }
+          {
+            headers: {
+              'Accept-Language': 'en',
+            },
+          }
         );
 
         if (res.ok) {
@@ -381,7 +434,10 @@ export default function Dashboard() {
 
     try {
       const res = await fetch(`/api/region-dossier?lat=${coords.lat}&lng=${coords.lng}`);
-      if (res.ok) setRegionDossier(await res.json());
+
+      if (res.ok) {
+        setRegionDossier(await res.json());
+      }
     } catch (e) {
       console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e);
     } finally {
@@ -391,7 +447,9 @@ export default function Dashboard() {
 
   // Entity click handler
   const handleEntityClick = useCallback((entity: any) => {
-    if (entity?.type === 'cctv') setActiveCamera(entity);
+    if (entity?.type === 'cctv') {
+      setActiveCamera(entity);
+    }
 
     if (entity?.type === 'live_news' && entity.url) {
       setLiveFeedUrl(entity.url);
@@ -437,7 +495,10 @@ export default function Dashboard() {
     const spaceTimer = setTimeout(async () => {
       try {
         const r = await fetch('/api/space-weather');
-        if (r.ok) setSpaceWeather(await r.json());
+
+        if (r.ok) {
+          setSpaceWeather(await r.json());
+        }
       } catch (e) {
         console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e);
       }
@@ -493,6 +554,7 @@ export default function Dashboard() {
         maritime_chokepoints: d.chokepoints,
         maritime_ships: d.ships,
       }));
+
       layerFetchedRef.current.add('maritime');
     }
 
@@ -600,11 +662,15 @@ export default function Dashboard() {
 
     for (let i = 0; i < allFlights.length; i += flightStep) {
       const f = allFlights[i];
+
       if (!f.lat || !f.lng) continue;
 
       sdkEntities.push({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
+        geometry: {
+          type: 'Point',
+          coordinates: [f.lng, f.lat],
+        },
         properties: {
           domain: 'AIR',
           name: f.callsign?.trim() || 'TRACK',
@@ -618,11 +684,15 @@ export default function Dashboard() {
 
     for (let i = 0; i < ships.length; i += shipStep) {
       const s = ships[i];
+
       if (!s.lat || !s.lng) continue;
 
       sdkEntities.push({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+        geometry: {
+          type: 'Point',
+          coordinates: [s.lng, s.lat],
+        },
         properties: {
           domain: 'SEA',
           name: s.name || `MMSI-${s.mmsi}`,
@@ -637,7 +707,10 @@ export default function Dashboard() {
 
         sdkEntities.push({
           type: 'Feature',
-          geometry: { type: 'Point', coordinates: [eq.lng, eq.lat] },
+          geometry: {
+            type: 'Point',
+            coordinates: [eq.lng, eq.lat],
+          },
           properties: {
             domain: 'LAND',
             name: `M${eq.magnitude} ${eq.place || ''}`,
@@ -653,11 +726,38 @@ export default function Dashboard() {
 
         sdkEntities.push({
           type: 'Feature',
-          geometry: { type: 'Point', coordinates: [g.lng, g.lat] },
+          geometry: {
+            type: 'Point',
+            coordinates: [g.lng, g.lat],
+          },
           properties: {
             domain: 'INTEL',
             name: g.name || 'OSINT Event',
             source: 'RSS OSINT Mapping',
+          },
+        });
+      }
+    }
+
+    if (currentData.gdeltDerivedSignals?.length) {
+      for (const signal of currentData.gdeltDerivedSignals) {
+        if (
+          typeof signal.location?.lat !== 'number' ||
+          typeof signal.location?.lng !== 'number'
+        ) {
+          continue;
+        }
+
+        sdkEntities.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [signal.location.lng, signal.location.lat],
+          },
+          properties: {
+            domain: 'INTEL',
+            name: signal.title || 'Derived Watch Condition',
+            source: 'OSIRIS Derived Signal',
           },
         });
       }
@@ -669,7 +769,10 @@ export default function Dashboard() {
 
         sdkEntities.push({
           type: 'Feature',
-          geometry: { type: 'Point', coordinates: [n.coords[1], n.coords[0]] },
+          geometry: {
+            type: 'Point',
+            coordinates: [n.coords[1], n.coords[0]],
+          },
           properties: {
             domain: 'INTEL',
             name: n.title || 'SIGINT',
@@ -695,6 +798,23 @@ export default function Dashboard() {
       dashboardData.military_flights,
     ]
   );
+
+  const intelData = useMemo(
+  () => ({
+    news: dashboardData.news || [],
+    gdeltDerivedSignals: dashboardData.gdeltDerivedSignals || [],
+    gdelt: dashboardData.gdelt || [],
+    gdeltMetadata: dashboardData.gdeltMetadata || null,
+    gdeltSourceNote: dashboardData.gdeltSourceNote || null,
+  }),
+  [
+    dashboardData.news,
+    dashboardData.gdeltDerivedSignals,
+    dashboardData.gdelt,
+    dashboardData.gdeltMetadata,
+    dashboardData.gdeltSourceNote,
+  ]
+);
 
   return (
     <main className="fixed inset-0 w-full h-full bg-[var(--bg-void)] overflow-hidden">
@@ -748,6 +868,7 @@ export default function Dashboard() {
                       '0 0 12px var(--gold-primary), 0 0 24px rgba(212,175,55,0.3)',
                   }}
                 />
+
                 <div
                   className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-1 h-1 rounded-full"
                   style={{
@@ -766,7 +887,10 @@ export default function Dashboard() {
                   rotate: { duration: 12, repeat: Infinity, ease: 'linear' },
                 }}
                 className="absolute rounded-full"
-                style={{ inset: '18px', border: '1px solid rgba(0,229,255,0.15)' }}
+                style={{
+                  inset: '18px',
+                  border: '1px solid rgba(0,229,255,0.15)',
+                }}
               >
                 <div
                   className="absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
@@ -776,6 +900,7 @@ export default function Dashboard() {
                       '0 0 10px var(--cyan-primary), 0 0 20px rgba(0,229,255,0.2)',
                   }}
                 />
+
                 <div
                   className="absolute bottom-0 left-1/4 translate-y-1/2 w-1 h-1 rounded-full"
                   style={{ background: 'rgba(0,229,255,0.4)' }}
@@ -791,7 +916,10 @@ export default function Dashboard() {
                   rotate: { duration: 7, repeat: Infinity, ease: 'linear' },
                 }}
                 className="absolute rounded-full"
-                style={{ inset: '40px', border: '1px solid rgba(212,175,55,0.25)' }}
+                style={{
+                  inset: '40px',
+                  border: '1px solid rgba(212,175,55,0.25)',
+                }}
               >
                 <div
                   className="absolute top-0 left-1/4 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
@@ -805,7 +933,11 @@ export default function Dashboard() {
               <motion.div
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+                transition={{
+                  delay: 0.4,
+                  duration: 0.6,
+                  ease: [0.34, 1.56, 0.64, 1],
+                }}
                 className="relative w-12 h-12 rounded-full flex items-center justify-center"
                 style={{
                   border: '2px solid var(--gold-primary)',
@@ -822,6 +954,7 @@ export default function Dashboard() {
                       'radial-gradient(circle, rgba(212,175,55,0.4) 0%, rgba(212,175,55,0.05) 70%)',
                   }}
                 />
+
                 <div
                   className="absolute w-[1px] h-full"
                   style={{
@@ -829,6 +962,7 @@ export default function Dashboard() {
                       'linear-gradient(to bottom, transparent, rgba(212,175,55,0.3), transparent)',
                   }}
                 />
+
                 <div
                   className="absolute w-full h-[1px]"
                   style={{
@@ -1136,6 +1270,7 @@ export default function Dashboard() {
         <a
           href="https://ko-fi.com/M8D41ZYW4Z"
           target="_blank"
+          rel="noopener noreferrer"
           className="pointer-events-auto hover:opacity-80 transition-opacity ml-1 flex items-center"
         >
           <span className="px-3 py-1 rounded-sm border border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10 text-[var(--gold-primary)] text-[11px] font-bold tracking-[0.2em]">
@@ -1155,6 +1290,7 @@ export default function Dashboard() {
           <a
             href="https://ko-fi.com/M8D41ZYW4Z"
             target="_blank"
+            rel="noopener noreferrer"
             className="glass-panel px-2 py-1 flex items-center gap-1.5 text-[7px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10"
           >
             <div className="w-1 h-1 rounded-full bg-[var(--gold-primary)] animate-osiris-pulse" />
@@ -1164,82 +1300,94 @@ export default function Dashboard() {
       )}
 
       {/* ── LEFT HUD ── */}
-      <div className="desktop-panel absolute left-5 top-20 bottom-24 w-72 flex flex-col gap-3 z-[200] pointer-events-none overflow-y-auto styled-scrollbar pr-1">
-        {showLayers && (
-          <>
-            <LayerPanel
-              data={dashboardData}
-              activeLayers={activeLayers}
-              setActiveLayers={setActiveLayers}
-            />
+      <div className="desktop-panel absolute left-5 top-20 bottom-24 w-72 z-[200] pointer-events-none min-h-0">
+        <div className="h-full max-h-full min-h-0 overflow-y-auto overflow-x-hidden styled-scrollbar pr-1 pb-8 pointer-events-auto">
+          <div className="flex min-h-max flex-col gap-3">
+            {showLayers && (
+              <>
+                <LayerPanel
+                  data={dashboardData}
+                  activeLayers={activeLayers}
+                  setActiveLayers={setActiveLayers}
+                />
 
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              className="glass-panel px-3 py-2.5 pointer-events-auto"
-            >
-              <div className="grid grid-cols-5 gap-2 text-center">
-                <div>
-                  <div className="hud-label">AIRCRAFT</div>
-                  <div className="hud-value text-[10px] animate-data-pulse">
-                    {globalStats ? globalStats.flights.toLocaleString() : '0'}
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="glass-panel px-3 py-2.5 pointer-events-auto shrink-0"
+                >
+                  <div className="grid grid-cols-5 gap-2 text-center">
+                    <div>
+                      <div className="hud-label">AIRCRAFT</div>
+                      <div className="hud-value text-[10px] animate-data-pulse">
+                        {globalStats ? globalStats.flights.toLocaleString() : '0'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="hud-label">SATS</div>
+                      <div className="hud-value text-[10px]">
+                        {globalStats ? globalStats.sats.toLocaleString() : '0'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="hud-label">CCTV</div>
+                      <div className="hud-value text-[10px]">
+                        {globalStats ? globalStats.cctv.toLocaleString() : '0'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="hud-label">WEATHER</div>
+                      <div
+                        className="hud-value text-[10px]"
+                        style={{ color: 'var(--accent-weather)' }}
+                      >
+                        {globalStats ? globalStats.weather.toLocaleString() : '0'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="hud-label">NUCLEAR</div>
+                      <div
+                        className="hud-value text-[10px]"
+                        style={{ color: 'var(--accent-nuclear)' }}
+                      >
+                        {globalStats ? globalStats.nuclear.toLocaleString() : '0'}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </motion.div>
 
-                <div>
-                  <div className="hud-label">SATS</div>
-                  <div className="hud-value text-[10px]">
-                    {globalStats ? globalStats.sats.toLocaleString() : '0'}
-                  </div>
-                </div>
+                <ViewPresets
+                  onNavigate={(lat, lng, zoom) => {
+                    setFlyToLocation({ lat, lng, ts: Date.now() });
+                    setMapView((v) => ({ ...v, zoom }));
+                  }}
+                />
+              </>
+            )}
 
-                <div>
-                  <div className="hud-label">CCTV</div>
-                  <div className="hud-value text-[10px]">
-                    {globalStats ? globalStats.cctv.toLocaleString() : '0'}
-                  </div>
-                </div>
+            {showScmPanel && <ScmPanel data={dashboardData} />}
 
-                <div>
-                  <div className="hud-label">WEATHER</div>
-                  <div className="hud-value text-[10px]" style={{ color: 'var(--accent-weather)' }}>
-                    {globalStats ? globalStats.weather.toLocaleString() : '0'}
-                  </div>
-                </div>
+            {showMarkets && (
+              <MarketsPanel data={dashboardData} spaceWeather={spaceWeather} />
+            )}
 
-                <div>
-                  <div className="hud-label">NUCLEAR</div>
-                  <div className="hud-value text-[10px]" style={{ color: 'var(--accent-nuclear)' }}>
-                    {globalStats ? globalStats.nuclear.toLocaleString() : '0'}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            <ViewPresets
-              onNavigate={(lat, lng, zoom) => {
-                setFlyToLocation({ lat, lng, ts: Date.now() });
-                setMapView((v) => ({ ...v, zoom }));
-              }}
-            />
-          </>
-        )}
-
-        {showScmPanel && <ScmPanel data={dashboardData} />}
-        {showMarkets && <MarketsPanel data={dashboardData} spaceWeather={spaceWeather} />}
-
-        {showIntel && (
-          <IntelFeed
-            key={`intel-${dataVersion}`}
-            data={dashboardData}
-            onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
-          />
-        )}
+            {showIntel && (
+              <IntelFeed
+                data={intelData}
+                onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── RIGHT HUD ── */}
-      <div className="desktop-panel absolute right-5 top-20 bottom-24 w-80 flex flex-col gap-3 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-1">
+      <div className="desktop-panel absolute right-5 top-20 bottom-24 w-80 flex flex-col gap-3 z-[200] pointer-events-auto overflow-y-auto overflow-x-hidden styled-scrollbar pr-1 min-h-0">
         <div className="flex gap-2 items-start">
           <div className="flex-1">
             <SearchBar onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} />
@@ -1291,9 +1439,11 @@ export default function Dashboard() {
               <div className="flex items-center justify-between px-4 py-2.5 bg-[#111] border-b border-[var(--border-primary)]">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-[#FF4081] animate-osiris-pulse" />
+
                   <span className="text-[12px] font-mono font-bold text-white tracking-wider">
                     {liveFeedName}
                   </span>
+
                   <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-mono text-[9px] font-bold">
                     LIVE STREAM
                   </span>
@@ -1396,10 +1546,10 @@ export default function Dashboard() {
                   className={`mobile-nav-btn ${mobilePanel === tab.id ? 'active' : ''}`}
                 >
                   <tab.icon
-                    className={`w-4 h-4 ${
-                      tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''
-                    }`}
+                    className={`w-4 h-4 ${tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''
+                      }`}
                   />
+
                   <span className={tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}>
                     {tab.label}
                   </span>
@@ -1415,7 +1565,7 @@ export default function Dashboard() {
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                className="fixed bottom-[52px] left-0 right-0 z-[400] glass-panel rounded-b-none overflow-y-auto styled-scrollbar"
+                className="fixed bottom-[52px] left-0 right-0 z-[400] glass-panel rounded-b-none overflow-y-auto overflow-x-hidden styled-scrollbar"
                 style={{
                   maxHeight: 'min(55vh, calc(100dvh - 100px))',
                   paddingBottom: 'env(safe-area-inset-bottom, 4px)',
@@ -1453,6 +1603,7 @@ export default function Dashboard() {
                             <div className="hud-label" style={{ fontSize: '6px' }}>
                               AIR
                             </div>
+
                             <div className="hud-value text-[9px]">
                               {totalFlights.toLocaleString()}
                             </div>
@@ -1462,6 +1613,7 @@ export default function Dashboard() {
                             <div className="hud-label" style={{ fontSize: '6px' }}>
                               SAT
                             </div>
+
                             <div className="hud-value text-[9px]">
                               {dashboardData.satellites?.length || 0}
                             </div>
@@ -1471,6 +1623,7 @@ export default function Dashboard() {
                             <div className="hud-label" style={{ fontSize: '6px' }}>
                               CAM
                             </div>
+
                             <div className="hud-value text-[9px]">
                               {dashboardData.cameras?.length || 0}
                             </div>
@@ -1480,6 +1633,7 @@ export default function Dashboard() {
                             <div className="hud-label" style={{ fontSize: '6px' }}>
                               WX
                             </div>
+
                             <div
                               className="hud-value text-[9px]"
                               style={{ color: 'var(--accent-weather)' }}
@@ -1492,6 +1646,7 @@ export default function Dashboard() {
                             <div className="hud-label" style={{ fontSize: '6px' }}>
                               NUC
                             </div>
+
                             <div
                               className="hud-value text-[9px]"
                               style={{ color: 'var(--accent-nuclear)' }}
@@ -1526,8 +1681,7 @@ export default function Dashboard() {
 
                   {mobilePanel === 'intel' && (
                     <IntelFeed
-                      key={`mobile-intel-${dataVersion}`}
-                      data={dashboardData}
+                      data={intelData}
                       onLocate={(lat, lng) => {
                         setFlyToLocation({ lat, lng, ts: Date.now() });
                         setMobilePanel(null);
@@ -1544,7 +1698,11 @@ export default function Dashboard() {
                         }}
                       />
 
-                      <SharePanel mapView={mapView} activeLayers={activeLayers} mouseCoords={null} />
+                      <SharePanel
+                        mapView={mapView}
+                        activeLayers={activeLayers}
+                        mouseCoords={null}
+                      />
                     </div>
                   )}
 
@@ -1592,6 +1750,7 @@ export default function Dashboard() {
 
             <div className="flex flex-col items-center min-w-[110px] px-3">
               <div className="hud-label">COORDINATES</div>
+
               <div
                 ref={coordsDisplayRef}
                 className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tracking-wide tabular-nums"
@@ -1600,52 +1759,59 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
+            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent shrink-0" />
 
             <div className="flex flex-col items-center min-w-[160px] max-w-[280px] px-3">
               <div className="hud-label">LOCATION</div>
+
               <div className="text-[9px] text-[var(--text-secondary)] font-mono truncate max-w-[280px]">
                 {locationLabel || 'Hover over map...'}
               </div>
             </div>
 
-            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
+            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent shrink-0" />
 
             <div className="flex flex-col items-center px-3">
               <div className="hud-label">ZOOM</div>
+
               <div className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tabular-nums">
                 {mapView.zoom.toFixed(1)}
               </div>
             </div>
 
-            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
+            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent shrink-0" />
 
             <div className="flex flex-col items-center px-3 min-w-[60px]">
               <div className="hud-label">ACTIVE LAYERS</div>
+
               <div className="flex items-center gap-1">
                 <Layers className="w-3 h-3 text-[var(--gold-primary)]" />
+
                 <span className="text-[10px] font-mono font-bold text-[var(--gold-primary)] tabular-nums">
                   {Object.values(activeLayers).filter(Boolean).length}
                 </span>
               </div>
             </div>
 
-            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
+            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent shrink-0" />
 
             <div className="flex flex-col items-center px-3 min-w-[60px]">
               <div className="hud-label">FEEDS</div>
+
               <div className="flex items-center gap-1">
                 <Activity className="w-3 h-3 text-[var(--cyan-primary)]" />
+
                 <span className="text-[10px] font-mono font-bold text-[var(--cyan-primary)] tabular-nums">
                   {Object.values(activeLayers).filter(Boolean).length}
                 </span>
               </div>
             </div>
 
-            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent flex-shrink-0" />
+            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[var(--border-primary)] to-transparent shrink-0" />
 
             <div className="flex flex-col items-center px-3 min-w-[70px]">
               <div className="hud-label">ENTITIES</div>
+
               <div className="flex items-center gap-1">
                 <Database className="w-3 h-3 text-[var(--alert-green)]" />
                 <ActiveEntityCount data={dashboardData} />
@@ -1686,6 +1852,7 @@ export default function Dashboard() {
             {dossierLoading ? (
               <div className="text-center py-8">
                 <div className="w-5 h-5 border-2 border-[var(--gold-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+
                 <span className="text-[8px] font-mono text-[var(--text-muted)] tracking-widest">
                   COMPILING INTEL...
                 </span>
@@ -1695,6 +1862,7 @@ export default function Dashboard() {
                 <div className="space-y-3">
                   <div>
                     <div className="hud-label mb-0.5">LOCATION</div>
+
                     <div className="text-xs text-[var(--text-primary)]">
                       {regionDossier.location?.display_name}
                     </div>
@@ -1704,6 +1872,7 @@ export default function Dashboard() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <div className="hud-label mb-0.5">COUNTRY</div>
+
                         <div className="text-xs text-[var(--text-primary)]">
                           {regionDossier.country.flag} {regionDossier.country.name}
                         </div>
@@ -1711,6 +1880,7 @@ export default function Dashboard() {
 
                       <div>
                         <div className="hud-label mb-0.5">CAPITAL</div>
+
                         <div className="text-xs text-[var(--text-primary)]">
                           {regionDossier.country.capital}
                         </div>
@@ -1718,6 +1888,7 @@ export default function Dashboard() {
 
                       <div>
                         <div className="hud-label mb-0.5">POPULATION</div>
+
                         <div className="text-xs text-[var(--text-primary)]">
                           {regionDossier.country.population?.toLocaleString()}
                         </div>
@@ -1725,6 +1896,7 @@ export default function Dashboard() {
 
                       <div>
                         <div className="hud-label mb-0.5">REGION</div>
+
                         <div className="text-xs text-[var(--text-primary)]">
                           {regionDossier.country.subregion || regionDossier.country.region}
                         </div>
@@ -1732,6 +1904,7 @@ export default function Dashboard() {
 
                       <div>
                         <div className="hud-label mb-0.5">LANGUAGES</div>
+
                         <div className="text-xs text-[var(--text-primary)]">
                           {regionDossier.country.languages?.join(', ')}
                         </div>
@@ -1739,6 +1912,7 @@ export default function Dashboard() {
 
                       <div>
                         <div className="hud-label mb-0.5">AREA</div>
+
                         <div className="text-xs text-[var(--text-primary)]">
                           {regionDossier.country.area?.toLocaleString()} km²
                         </div>
@@ -1749,9 +1923,11 @@ export default function Dashboard() {
                   {regionDossier.head_of_state && (
                     <div>
                       <div className="hud-label mb-0.5">HEAD OF STATE</div>
+
                       <div className="text-xs text-[var(--gold-primary)]">
                         {regionDossier.head_of_state.name}
                       </div>
+
                       <div className="text-[8px] text-[var(--text-muted)]">
                         {regionDossier.head_of_state.position}
                       </div>
@@ -1761,12 +1937,13 @@ export default function Dashboard() {
                   {regionDossier.wikipedia && (
                     <div>
                       <div className="hud-label mb-1">INTELLIGENCE BRIEF</div>
+
                       <div className="flex gap-3">
                         {regionDossier.wikipedia.thumbnail && (
                           <img
                             src={regionDossier.wikipedia.thumbnail}
                             alt=""
-                            className="w-14 h-14 rounded object-cover flex-shrink-0"
+                            className="w-14 h-14 rounded object-cover shrink-0"
                           />
                         )}
 
@@ -1827,6 +2004,7 @@ export default function Dashboard() {
           <div
             className={`absolute ${c.vAnchor} ${c.hAnchor} w-full h-[1px] ${c.hGrad} from-[var(--gold-primary)]/30 to-transparent`}
           />
+
           <div
             className={`absolute ${c.vAnchor} ${c.hAnchor} w-[1px] h-full ${c.vGrad} from-[var(--gold-primary)]/30 to-transparent`}
           />
