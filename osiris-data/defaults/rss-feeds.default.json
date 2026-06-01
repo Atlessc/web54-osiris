@@ -1,0 +1,57 @@
+[
+  {
+    "id": "bbc-world",
+    "name": "BBC World",
+    "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.85,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "general", "breaking"]
+  },
+  {
+    "id": "reuters-world",
+    "name": "Reuters World",
+    "url": "https://www.reutersagency.com/feed/?best-topics=world&post_type=best",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.9,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "wire", "general"]
+  },
+  {
+    "id": "aljazeera-world",
+    "name": "Al Jazeera World",
+    "url": "https://www.aljazeera.com/xml/rss/all.xml",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.8,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "middle-east", "general"]
+  },
+  {
+    "id": "usgs-earthquakes",
+    "name": "USGS Significant Earthquakes",
+    "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+    "type": "rss",
+    "category": "natural-hazards",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 15,
+    "tags": ["earthquake", "seismic", "hazards"]
+  },
+  {
+    "id": "cisa-alerts",
+    "name": "CISA Alerts",
+    "url": "https://www.cisa.gov/news.xml",
+    "type": "rss",
+    "category": "cybersecurity",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 30,
+    "tags": ["cyber", "security", "government"]
+  }
+]

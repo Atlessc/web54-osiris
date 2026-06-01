@@ -33,6 +33,9 @@ import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import GlobalStatusBar from '@/components/GlobalStatusBar';
 import LiveAlerts from '@/components/LiveAlerts';
 
+import { getLocalConfig } from '@/lib/local-config/client';
+import type { SettingsConfig } from '@/types/local-config';
+
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const CameraViewer = dynamic(() => import('@/components/CameraViewer'));
@@ -72,7 +75,7 @@ const UptimeClock = () => {
       const e = Math.floor((Date.now() - startTime.current) / 1000);
 
       const nextUptime = `${String(Math.floor(e / 3600)).padStart(2, '0')}:${String(
-        Math.floor((e % 3600) / 60)
+        Math.floor((e % 3600) / 60),
       ).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}`;
 
       if (!mounted) return;
@@ -104,7 +107,7 @@ const getZuluTimeString = () => {
   const now = new Date();
 
   return `ZULU ${String(now.getUTCHours()).padStart(2, '0')}:${String(
-    now.getUTCMinutes()
+    now.getUTCMinutes(),
   ).padStart(2, '0')}:${String(now.getUTCSeconds()).padStart(2, '0')}Z`;
 };
 
@@ -149,7 +152,7 @@ const ActiveEntityCount = ({ data }: { data: Record<string, unknown[]> }) => {
 
     return Object.values(data).reduce(
       (sum, v) => sum + (Array.isArray(v) ? v.length : 0),
-      0
+      0,
     );
   }, [data]);
 
@@ -173,6 +176,112 @@ function getYouTubeWatchUrl(url: string): string {
   return url;
 }
 
+const DEFAULT_ACTIVE_LAYERS = {
+  flights: false,
+  private: false,
+  jets: false,
+  military: false,
+  maritime: true,
+  satellites: false,
+  balloons: false,
+  cctv: true,
+  live_news: true,
+  news_intel: true,
+  earthquakes: true,
+  fires: false,
+  weather: false,
+  radiation: false,
+  infrastructure: false,
+  global_incidents: true,
+  war_alerts: false,
+  gps_jamming: false,
+  day_night: true,
+  sdk_stream: true,
+};
+
+type ActiveLayers = typeof DEFAULT_ACTIVE_LAYERS;
+type ActiveLayerKey = keyof ActiveLayers;
+
+const SETTINGS_LAYER_ALIASES: Record<string, ActiveLayerKey> = {
+  flights: 'flights',
+  private: 'private',
+  jets: 'jets',
+  military: 'military',
+  maritime: 'maritime',
+  satellites: 'satellites',
+  balloons: 'balloons',
+  cctv: 'cctv',
+
+  'live-news': 'live_news',
+  live_news: 'live_news',
+
+  'news-intel': 'news_intel',
+  news_intel: 'news_intel',
+
+  earthquakes: 'earthquakes',
+  fires: 'fires',
+  weather: 'weather',
+  radiation: 'radiation',
+  infrastructure: 'infrastructure',
+
+  'global-incidents': 'global_incidents',
+  global_incidents: 'global_incidents',
+
+  'war-alerts': 'war_alerts',
+  war_alerts: 'war_alerts',
+
+  'gps-jamming': 'gps_jamming',
+  gps_jamming: 'gps_jamming',
+
+  'day-night': 'day_night',
+  day_night: 'day_night',
+
+  'sdk-stream': 'sdk_stream',
+  sdk_stream: 'sdk_stream',
+};
+
+function normalizeLayerKey(layer: string): ActiveLayerKey | null {
+  return SETTINGS_LAYER_ALIASES[layer.trim()] ?? null;
+}
+
+function getActiveLayersFromSettings(settings: SettingsConfig): ActiveLayers {
+  const enabledLayerKeys = new Set<ActiveLayerKey>();
+
+  for (const layer of settings.enabledLayers) {
+    const normalizedLayer = normalizeLayerKey(layer);
+
+    if (normalizedLayer) {
+      enabledLayerKeys.add(normalizedLayer);
+    }
+  }
+
+  return Object.keys(DEFAULT_ACTIVE_LAYERS).reduce((nextLayers, layerKey) => {
+    const typedLayerKey = layerKey as ActiveLayerKey;
+
+    nextLayers[typedLayerKey] = enabledLayerKeys.has(typedLayerKey);
+
+    return nextLayers;
+  }, { ...DEFAULT_ACTIVE_LAYERS });
+}
+
+function getActiveLayersFromUrl(layers: string): ActiveLayers {
+  const activeLayerKeys = new Set<ActiveLayerKey>();
+
+  layers
+    .split(',')
+    .map((layer) => normalizeLayerKey(layer))
+    .filter(Boolean)
+    .forEach((layer) => activeLayerKeys.add(layer as ActiveLayerKey));
+
+  return Object.keys(DEFAULT_ACTIVE_LAYERS).reduce((nextLayers, layerKey) => {
+    const typedLayerKey = layerKey as ActiveLayerKey;
+
+    nextLayers[typedLayerKey] = activeLayerKeys.has(typedLayerKey);
+
+    return nextLayers;
+  }, { ...DEFAULT_ACTIVE_LAYERS });
+}
+
 export default function MapPage() {
   const mapRuntimeRef = useRef<HTMLElement>(null);
   const dataRef = useRef<any>({});
@@ -185,7 +294,7 @@ export default function MapPage() {
   const dashboardData = useMemo(() => dataRef.current, [dataVersion]);
 
   const [backendStatus, setBackendStatus] = useState<'connecting' | 'connected' | 'error'>(
-    'connecting'
+    'connecting',
   );
 
   const [mapView, setMapView] = useState({ zoom: 2.5, latitude: 20 });
@@ -211,8 +320,6 @@ export default function MapPage() {
   const [showScmPanel, setShowScmPanel] = useState(true);
   const [showIntel, setShowIntel] = useState(true);
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
   const [mobilePanel, setMobilePanel] = useState<
     'layers' | 'markets' | 'intel' | 'search' | 'recon' | null
   >(null);
@@ -228,29 +335,8 @@ export default function MapPage() {
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastGeocodedPos = useRef<{ lat: number; lng: number } | null>(null);
 
-  // ── DEFAULT: Most layers OFF — fast initial load ──
-  const [activeLayers, setActiveLayers] = useState({
-    flights: false,
-    private: false,
-    jets: false,
-    military: false,
-    maritime: true,
-    satellites: false,
-    balloons: false,
-    cctv: true,
-    live_news: true,
-    news_intel: true,
-    earthquakes: true,
-    fires: false,
-    weather: false,
-    radiation: false,
-    infrastructure: false,
-    global_incidents: true,
-    war_alerts: false,
-    gps_jamming: false,
-    day_night: true,
-    sdk_stream: true,
-  });
+  const [activeLayers, setActiveLayers] = useState<ActiveLayers>(DEFAULT_ACTIVE_LAYERS);
+  const hasUrlLayerOverrideRef = useRef(false);
 
   const [liveFeedUrl, setLiveFeedUrl] = useState<string | null>(null);
   const [liveFeedName, setLiveFeedName] = useState('');
@@ -265,10 +351,10 @@ export default function MapPage() {
     const lon = parseFloat(p.get('lon') || '');
     const zoom = parseFloat(p.get('zoom') || '');
 
-    if (!isNaN(lat) && !isNaN(lon)) {
+    if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
       setFlyToLocation({ lat, lng: lon, ts: Date.now() });
 
-      if (!isNaN(zoom)) {
+      if (!Number.isNaN(zoom)) {
         setMapView((v) => ({ ...v, zoom }));
       }
     }
@@ -276,30 +362,47 @@ export default function MapPage() {
     const layers = p.get('layers');
 
     if (layers) {
-      const active = layers.split(',');
-
-      setActiveLayers((prev) => {
-        const next = { ...prev };
-
-        Object.keys(next).forEach((k) => {
-          (next as any)[k] = active.includes(k);
-        });
-
-        return next;
-      });
+      hasUrlLayerOverrideRef.current = true;
+      setActiveLayers(getActiveLayersFromUrl(layers));
     }
   }, []);
 
-  // URL state: update URL on view change (debounced)
+  // Local settings config: default active layers
+  useEffect(() => {
+    let cancelled = false;
+
+    getLocalConfig('settings')
+      .then((settings) => {
+        if (cancelled) return;
+
+        if (!hasUrlLayerOverrideRef.current) {
+          setActiveLayers(getActiveLayersFromSettings(settings));
+        }
+      })
+      .catch((error) => {
+        console.warn(
+          '[OSIRIS] Failed to load settings config:',
+          error instanceof Error ? error.message : error,
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // URL state: update URL on view/layer change (debounced)
   const urlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    if (urlTimer.current) clearTimeout(urlTimer.current);
+    if (urlTimer.current) {
+      clearTimeout(urlTimer.current);
+    }
 
     urlTimer.current = setTimeout(() => {
-      const p = new URLSearchParams();
+      const p = new URLSearchParams(window.location.search);
 
       p.set('lat', (mapView.latitude ?? 20).toFixed(4));
       p.set('lon', '0');
@@ -315,6 +418,12 @@ export default function MapPage() {
       const url = `${window.location.pathname}?${p.toString()}`;
       window.history.replaceState(null, '', url);
     }, 1500);
+
+    return () => {
+      if (urlTimer.current) {
+        clearTimeout(urlTimer.current);
+      }
+    };
   }, [mapView, activeLayers]);
 
   // Global Stats Fetch
@@ -348,14 +457,10 @@ export default function MapPage() {
       if (e.key === 'g') setMapProjection((p) => (p === 'globe' ? 'mercator' : 'globe'));
     };
 
-    const fsHandler = () => setIsFullscreen(!!document.fullscreenElement);
-
     window.addEventListener('keydown', handler);
-    document.addEventListener('fullscreenchange', fsHandler);
 
     return () => {
       window.removeEventListener('keydown', handler);
-      document.removeEventListener('fullscreenchange', fsHandler);
     };
   }, []);
 
@@ -393,7 +498,7 @@ export default function MapPage() {
             headers: {
               'Accept-Language': 'en',
             },
-          }
+          },
         );
 
         if (res.ok) {
@@ -476,7 +581,7 @@ export default function MapPage() {
         setBackendStatus('error');
       }
     },
-    []
+    [],
   );
 
   // ── PROGRESSIVE DATA LOADING ──
@@ -486,7 +591,7 @@ export default function MapPage() {
 
     const marketTimer = setTimeout(
       () => fetchEndpoint('/api/markets', (d) => ({ markets: d })),
-      800
+      800,
     );
 
     const spaceTimer = setTimeout(async () => {
@@ -608,7 +713,7 @@ export default function MapPage() {
 
     if (activeLayers.balloons) {
       intervals.push(
-        setInterval(() => fetchEndpoint('/api/balloons', (d) => ({ balloons: d.balloons })), 300000)
+        setInterval(() => fetchEndpoint('/api/balloons', (d) => ({ balloons: d.balloons })), 300000),
       );
     }
 
@@ -616,8 +721,8 @@ export default function MapPage() {
       intervals.push(
         setInterval(
           () => fetchEndpoint('/api/radiation', (d) => ({ radiation: d.stations })),
-          300000
-        )
+          300000,
+        ),
       );
     }
 
@@ -630,8 +735,8 @@ export default function MapPage() {
               maritime_chokepoints: d.chokepoints,
               maritime_ships: d.ships,
             })),
-          10000
-        )
+          10000,
+        ),
       );
     }
 
@@ -642,6 +747,7 @@ export default function MapPage() {
   useEffect(() => {
     if (!activeLayers.sdk_stream) {
       dataRef.current = { ...dataRef.current, sdk_entities: [] };
+      setDataVersion((v) => v + 1);
       return;
     }
 
@@ -793,7 +899,7 @@ export default function MapPage() {
       dashboardData.private_flights,
       dashboardData.private_jets,
       dashboardData.military_flights,
-    ]
+    ],
   );
 
   const intelData = useMemo(
@@ -810,15 +916,14 @@ export default function MapPage() {
       dashboardData.gdelt,
       dashboardData.gdeltMetadata,
       dashboardData.gdeltSourceNote,
-    ]
+    ],
   );
 
   return (
     <main
       ref={mapRuntimeRef}
-      className="relative h-[calc(100dvh-var(--app-navbar-height))] w-full bg-[var(--bg-void)] overflow-hidden"
+      className="relative h-full w-full bg-[var(--bg-void)] overflow-hidden"
     >
-
       {/* ── MAP ── */}
       <ErrorBoundary name="Map">
         <OsirisMap
@@ -973,7 +1078,7 @@ export default function MapPage() {
           <span className="text-[var(--cyan-primary)] font-bold">
             {Object.values(activeLayers).filter(Boolean).length}
           </span>
-          <span className="text-[var(--text-muted)]/60">FEEDS</span>
+          <span className="text-[var(--text-muted)]/60">LAYERS</span>
         </span>
 
         <UptimeClock />
@@ -1083,9 +1188,7 @@ export default function MapPage() {
 
             {showScmPanel && <ScmPanel data={dashboardData} />}
 
-            {showMarkets && (
-              <MarketsPanel data={dashboardData} spaceWeather={spaceWeather} />
-            )}
+            {showMarkets && <MarketsPanel data={dashboardData} spaceWeather={spaceWeather} />}
 
             {showIntel && (
               <IntelFeed
@@ -1257,8 +1360,9 @@ export default function MapPage() {
                   className={`mobile-nav-btn ${mobilePanel === tab.id ? 'active' : ''}`}
                 >
                   <tab.icon
-                    className={`w-4 h-4 ${tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''
-                      }`}
+                    className={`w-4 h-4 ${
+                      tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''
+                    }`}
                   />
 
                   <span className={tab.id === 'recon' ? 'text-[var(--cyan-primary)]' : ''}>

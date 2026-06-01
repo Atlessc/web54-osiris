@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { readLocalConfig } from "@/lib/local-config/configService";
+import type { LocationRegistryConfig } from "@/types/local-config";
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -8,7 +11,7 @@ export const dynamic = "force-dynamic";
  * This route acts as a metadata-rich fallback for global incident mapping.
  *
  * It does NOT pretend to be full GDELT event intelligence.
- * It pulls free RSS feeds, extracts useful metadata, performs lightweight
+ * It pulls free RSS/Atom feeds, extracts useful metadata, performs lightweight
  * keyword + location matching, and returns both map events and derived
  * analyst-style signals.
  */
@@ -45,6 +48,8 @@ interface KeywordEntry {
     | "disaster"
     | "infrastructure";
 }
+
+type KeywordWeights = Record<string, KeywordEntry>;
 
 interface MatchedLocation {
   key: string;
@@ -118,7 +123,7 @@ interface DerivedSignal {
   relatedEventIds: string[];
 }
 
-const RSS_FEEDS: RssFeed[] = [
+const FALLBACK_RSS_FEEDS: RssFeed[] = [
   {
     url: "https://feeds.bbci.co.uk/news/world/rss.xml",
     source: "BBC World",
@@ -136,6 +141,31 @@ const RSS_FEEDS: RssFeed[] = [
   },
 ];
 
+async function getConfiguredRssFeeds(): Promise<RssFeed[]> {
+  try {
+    const feeds = await readLocalConfig("rss-feeds");
+
+    const enabledFeeds = feeds
+      .filter((feed) => feed.enabled)
+      .map((feed) => ({
+        url: feed.url,
+        source: feed.name,
+        reliability: feed.reliabilityWeight,
+      }));
+
+    if (enabledFeeds.length) {
+      return enabledFeeds;
+    }
+  } catch (error) {
+    console.warn(
+      "[OSIRIS] Failed to load rss-feeds config. Falling back to built-in feeds:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  return FALLBACK_RSS_FEEDS;
+}
+
 /**
  * Coordinates are [lng, lat].
  *
@@ -144,7 +174,7 @@ const RSS_FEEDS: RssFeed[] = [
  * - Actor proxy locations should be explicitly labeled as proxy/inferred.
  * - City-level matches are more useful and should score higher.
  */
-const GEO_DICT: Record<string, GeoEntry> = {
+const FALLBACK_GEO_DICT: Record<string, GeoEntry> = {
   ukraine: {
     coords: [31.1656, 48.3794],
     precision: "country",
@@ -175,6 +205,7 @@ const GEO_DICT: Record<string, GeoEntry> = {
     precision: "region",
     confidence: 0.75,
     label: "Gaza",
+    aliases: ["gaza strip"],
   },
   israel: {
     coords: [34.8516, 31.0461],
@@ -278,7 +309,7 @@ const GEO_DICT: Record<string, GeoEntry> = {
     precision: "country",
     confidence: 0.35,
     label: "United States",
-    aliases: ["united states", "u.s.", "us"],
+    aliases: ["united states", "u.s.", "us", "united states of america"],
   },
   myanmar: {
     coords: [95.956, 21.9162],
@@ -353,7 +384,7 @@ const GEO_DICT: Record<string, GeoEntry> = {
     precision: "country",
     confidence: 0.4,
     label: "United Kingdom",
-    aliases: ["britain", "united kingdom"],
+    aliases: ["britain", "united kingdom", "u.k."],
   },
   mexico: {
     coords: [-102.5528, 23.6345],
@@ -363,7 +394,7 @@ const GEO_DICT: Record<string, GeoEntry> = {
   },
 };
 
-const KEYWORD_WEIGHTS: Record<string, KeywordEntry> = {
+const FALLBACK_KEYWORD_WEIGHTS: KeywordWeights = {
   missile: { weight: 34, family: "kinetic" },
   missiles: { weight: 34, family: "kinetic" },
   drone: { weight: 28, family: "kinetic" },
@@ -422,6 +453,148 @@ const KEYWORD_WEIGHTS: Record<string, KeywordEntry> = {
   wildfire: { weight: 18, family: "disaster" },
 };
 
+const KEYWORD_FAMILY_BY_PACK: Record<string, KeywordEntry["family"]> = {
+  conflict: "military",
+  kinetic: "kinetic",
+  military: "military",
+  political: "political",
+  "civil-unrest": "civil_unrest",
+  cyber: "security",
+  "natural-hazards": "disaster",
+  infrastructure: "infrastructure",
+  "health-security": "security",
+  humanitarian: "security",
+  "supply-chain": "infrastructure",
+  "good-news": "security",
+  custom: "security",
+};
+
+const KEYWORD_WEIGHT_BY_PACK: Record<string, number> = {
+  conflict: 22,
+  kinetic: 30,
+  military: 18,
+  political: 14,
+  "civil-unrest": 16,
+  cyber: 20,
+  "natural-hazards": 18,
+  infrastructure: 16,
+  "health-security": 14,
+  humanitarian: 12,
+  "supply-chain": 12,
+  "good-news": 8,
+  custom: 10,
+};
+
+async function getConfiguredKeywordWeights(): Promise<KeywordWeights> {
+  try {
+    const keywordPacks = await readLocalConfig("keyword-packs");
+    const keywordWeights: KeywordWeights = {};
+
+    for (const [packName, keywords] of Object.entries(keywordPacks)) {
+      const family = KEYWORD_FAMILY_BY_PACK[packName] ?? "security";
+      const weight = KEYWORD_WEIGHT_BY_PACK[packName] ?? 10;
+
+      for (const keyword of keywords) {
+        const normalizedKeyword = keyword.trim().toLowerCase();
+
+        if (!normalizedKeyword) continue;
+
+        keywordWeights[normalizedKeyword] = {
+          family,
+          weight,
+        };
+      }
+    }
+
+    if (Object.keys(keywordWeights).length) {
+      return keywordWeights;
+    }
+  } catch (error) {
+    console.warn(
+      "[OSIRIS] Failed to load keyword-packs config. Falling back to built-in keywords:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  return FALLBACK_KEYWORD_WEIGHTS;
+}
+
+function getGeoPrecisionFromLocationType(
+  locationType: LocationRegistryConfig[number]["type"],
+): GeoPrecision {
+  if (locationType === "city") return "city";
+
+  if (locationType === "region" || locationType === "maritime-region") {
+    return "region";
+  }
+
+  return "country";
+}
+
+function getGeoConfidenceFromPrecision(precision: GeoPrecision): number {
+  if (precision === "city") return 0.85;
+  if (precision === "region") return 0.65;
+  if (precision === "actor_proxy") return 0.3;
+  return 0.45;
+}
+
+function mapLocationRegistryToGeoDict(
+  locations: LocationRegistryConfig,
+): Record<string, GeoEntry> {
+  const geoDict: Record<string, GeoEntry> = {};
+
+  for (const location of locations) {
+    const key = location.name.trim().toLowerCase();
+
+    if (!key) continue;
+
+    const precision = getGeoPrecisionFromLocationType(location.type);
+
+    geoDict[key] = {
+      coords: [location.coordinates.lng, location.coordinates.lat],
+      precision,
+      confidence: getGeoConfidenceFromPrecision(precision),
+      label: location.name,
+      aliases: location.aliases,
+    };
+
+    for (const alias of location.aliases) {
+      const aliasKey = alias.trim().toLowerCase();
+
+      if (!aliasKey) continue;
+
+      geoDict[aliasKey] = {
+        coords: [location.coordinates.lng, location.coordinates.lat],
+        precision,
+        confidence: getGeoConfidenceFromPrecision(precision),
+        label: location.name,
+        aliases: location.aliases,
+      };
+    }
+  }
+
+  return geoDict;
+}
+
+async function getConfiguredGeoDict(): Promise<Record<string, GeoEntry>> {
+  try {
+    const locations = await readLocalConfig("location-registry");
+    const configuredGeoDict = mapLocationRegistryToGeoDict(locations);
+
+    return {
+      ...FALLBACK_GEO_DICT,
+      ...configuredGeoDict,
+    };
+  } catch (error) {
+    console.warn(
+      "[OSIRIS] Failed to load location-registry config. Falling back to built-in locations:",
+      error instanceof Error ? error.message : error,
+    );
+
+    return FALLBACK_GEO_DICT;
+  }
+}
+
 function decodeXmlEntities(value: string): string {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
@@ -469,6 +642,22 @@ function extractTag(item: string, tagName: string): string | null {
   return null;
 }
 
+function extractLink(item: string): string | null {
+  const tagLink = extractTag(item, "link");
+
+  if (tagLink) {
+    return tagLink.trim();
+  }
+
+  const atomLinkMatch = item.match(/<link\b[^>]*href=["']([^"']+)["'][^>]*\/?>/i);
+
+  if (atomLinkMatch?.[1]) {
+    return decodeXmlEntities(atomLinkMatch[1]).trim();
+  }
+
+  return null;
+}
+
 function parsePublishedAt(item: string): string | null {
   const rawDate =
     extractTag(item, "pubDate") ||
@@ -493,10 +682,7 @@ function getArticleAgeMinutes(
   const published = new Date(publishedAt);
   if (Number.isNaN(published.getTime())) return null;
 
-  return Math.max(
-    0,
-    Math.round((now.getTime() - published.getTime()) / 60_000),
-  );
+  return Math.max(0, Math.round((now.getTime() - published.getTime()) / 60_000));
 }
 
 function normalizeForSearch(value: string): string {
@@ -513,10 +699,13 @@ function getWordRegex(term: string): RegExp {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i");
 }
 
-function getMatchedKeywords(text: string): string[] {
+function getMatchedKeywords(
+  text: string,
+  keywordWeights: KeywordWeights,
+): string[] {
   const matched: string[] = [];
 
-  for (const keyword of Object.keys(KEYWORD_WEIGHTS)) {
+  for (const keyword of Object.keys(keywordWeights)) {
     if (getWordRegex(keyword).test(text)) {
       matched.push(keyword);
     }
@@ -525,20 +714,26 @@ function getMatchedKeywords(text: string): string[] {
   return matched;
 }
 
-function getKeywordFamilies(matchedKeywords: string[]): string[] {
+function getKeywordFamilies(
+  matchedKeywords: string[],
+  keywordWeights: KeywordWeights,
+): string[] {
   return Array.from(
     new Set(
       matchedKeywords
-        .map((keyword) => KEYWORD_WEIGHTS[keyword]?.family)
+        .map((keyword) => keywordWeights[keyword]?.family)
         .filter(Boolean),
     ),
   );
 }
 
-function getMatchedLocation(text: string): MatchedLocation | null {
+function getMatchedLocation(
+  text: string,
+  geoDict: Record<string, GeoEntry>,
+): MatchedLocation | null {
   const candidates: MatchedLocation[] = [];
 
-  for (const [key, entry] of Object.entries(GEO_DICT)) {
+  for (const [key, entry] of Object.entries(geoDict)) {
     const terms = [key, ...(entry.aliases || [])];
 
     for (const term of terms) {
@@ -550,6 +745,7 @@ function getMatchedLocation(text: string): MatchedLocation | null {
           precision: entry.precision,
           confidence: entry.confidence,
         });
+
         break;
       }
     }
@@ -557,10 +753,6 @@ function getMatchedLocation(text: string): MatchedLocation | null {
 
   if (!candidates.length) return null;
 
-  /**
-   * Prefer the most precise match.
-   * Example: "Kyiv" should beat "Ukraine".
-   */
   const precisionRank: Record<GeoPrecision, number> = {
     city: 4,
     region: 3,
@@ -569,8 +761,7 @@ function getMatchedLocation(text: string): MatchedLocation | null {
   };
 
   return candidates.sort((a, b) => {
-    const precisionDiff =
-      precisionRank[b.precision] - precisionRank[a.precision];
+    const precisionDiff = precisionRank[b.precision] - precisionRank[a.precision];
     if (precisionDiff !== 0) return precisionDiff;
 
     return b.confidence - a.confidence;
@@ -580,16 +771,14 @@ function getMatchedLocation(text: string): MatchedLocation | null {
 function getSeverityScore(
   matchedKeywords: string[],
   articleAgeMinutes: number | null,
+  keywordWeights: KeywordWeights,
 ): number {
   const rawKeywordScore = matchedKeywords.reduce((total, keyword) => {
-    return total + (KEYWORD_WEIGHTS[keyword]?.weight || 0);
+    return total + (keywordWeights[keyword]?.weight || 0);
   }, 0);
 
   const keywordScore = Math.min(rawKeywordScore, 85);
 
-  /**
-   * Recent articles get a small boost because they are more operationally useful.
-   */
   let recencyBoost = 0;
 
   if (articleAgeMinutes !== null) {
@@ -660,11 +849,6 @@ function getDisplayCoords(
   eventIndex: number,
   precision: GeoPrecision,
 ): [number, number] {
-  /**
-   * City-level matches receive smaller jitter.
-   * Country/actor-level matches receive larger jitter because many stories
-   * may map to the same centroid.
-   */
   const jitterScaleByPrecision: Record<GeoPrecision, number> = {
     city: 0.25,
     region: 0.6,
@@ -840,6 +1024,7 @@ function getClusterKey(event: OsintEvent): string {
 
 function average(values: number[]): number {
   if (!values.length) return 0;
+
   return Math.round(
     values.reduce((sum, value) => sum + value, 0) / values.length,
   );
@@ -864,6 +1049,7 @@ function getClusterConfidenceLevel(events: OsintEvent[]): ConfidenceLevel {
   const avgConfidence = average(events.map((event) => event.confidenceScore));
 
   const corroborationBoost = uniqueSources.size >= 2 ? 10 : 0;
+
   return getConfidenceLevel(Math.min(100, avgConfidence + corroborationBoost));
 }
 
@@ -876,6 +1062,7 @@ function buildDerivedSignals(
   for (const event of events) {
     const clusterKey = getClusterKey(event);
     const existing = clusters.get(clusterKey) || [];
+
     existing.push(event);
     clusters.set(clusterKey, existing);
   }
@@ -883,10 +1070,6 @@ function buildDerivedSignals(
   const derivedSignals: DerivedSignal[] = [];
 
   for (const [clusterKey, clusterEvents] of clusters.entries()) {
-    /**
-     * Single-source/single-event clusters are still useful, but derived signals
-     * should prioritize clusters with multiple pieces of evidence.
-     */
     const shouldKeepCluster =
       clusterEvents.length >= 2 ||
       clusterEvents.some(
@@ -966,7 +1149,7 @@ function buildDerivedSignals(
       ],
       inferredMeaning: [
         `Reporting density around ${first.matchedLocation.label} is higher than a single isolated article.`,
-        `This may deserve analyst review, especially if aviation, maritime, weather, GPS, market, or infrastructure layers also show movement.`,
+        "This may deserve analyst review, especially if aviation, maritime, weather, GPS, market, or infrastructure layers also show movement.",
       ],
       uncertainty: [
         "Cluster is based on lightweight RSS parsing and keyword matching.",
@@ -994,15 +1177,28 @@ function buildDerivedSignals(
   });
 }
 
+function extractFeedItems(xml: string): string[] {
+  const rssItems = xml.match(/<item\b[^>]*>([\s\S]*?)<\/item>/gi) || [];
+  const atomEntries = xml.match(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi) || [];
+
+  return [...rssItems, ...atomEntries];
+}
+
 export async function GET() {
   const fetchedAtDate = new Date();
   const fetchedAt = fetchedAtDate.toISOString();
 
   try {
+    const [rssFeeds, keywordWeights, geoDict] = await Promise.all([
+      getConfiguredRssFeeds(),
+      getConfiguredKeywordWeights(),
+      getConfiguredGeoDict(),
+    ]);
+
     const allEvents: OsintEvent[] = [];
     let eventId = 0;
 
-    for (const feed of RSS_FEEDS) {
+    for (const feed of rssFeeds) {
       try {
         const res = await fetch(feed.url, {
           signal: AbortSignal.timeout(5000),
@@ -1018,19 +1214,15 @@ export async function GET() {
         }
 
         const xml = await res.text();
-
-        /**
-         * Lightweight RSS extraction to avoid adding XML parser deps.
-         * This is intentionally defensive, but a real XML parser would be cleaner.
-         */
-        const items = xml.match(/<item\b[^>]*>([\s\S]*?)<\/item>/gi) || [];
+        const items = extractFeedItems(xml);
 
         for (const item of items) {
           const rawTitle = extractTag(item, "title");
-          const rawLink = extractTag(item, "link");
+          const rawLink = extractLink(item);
           const rawDesc =
             extractTag(item, "description") ||
             extractTag(item, "summary") ||
+            extractTag(item, "content") ||
             "";
 
           if (!rawTitle || !rawLink) continue;
@@ -1046,17 +1238,23 @@ export async function GET() {
 
           const textToSearch = normalizeForSearch(`${title} ${description}`);
 
-          const matchedKeywords = getMatchedKeywords(textToSearch);
+          const matchedKeywords = getMatchedKeywords(textToSearch, keywordWeights);
           if (!matchedKeywords.length) continue;
 
-          const matchedLocation = getMatchedLocation(textToSearch);
+          const matchedLocation = getMatchedLocation(textToSearch, geoDict);
           if (!matchedLocation) continue;
 
-          const keywordFamilies = getKeywordFamilies(matchedKeywords);
+          const keywordFamilies = getKeywordFamilies(
+            matchedKeywords,
+            keywordWeights,
+          );
+
           const severityScore = getSeverityScore(
             matchedKeywords,
             articleAgeMinutes,
+            keywordWeights,
           );
+
           const severityLevel = getSeverityLevel(severityScore);
 
           /**
@@ -1174,12 +1372,14 @@ export async function GET() {
         timestamp: fetchedAt,
         source: "RSS_OSINT_MAPPING",
         sourceNote:
-          "This route uses free RSS feeds with lightweight keyword/location mapping. It is not full GDELT event intelligence.",
+          "This route uses free RSS/Atom feeds with lightweight keyword/location mapping. It is not full GDELT event intelligence.",
         metadata: {
           fullGdeltEvent: false,
           mapper: "rss_keyword_geo_mapper",
-          feedCount: RSS_FEEDS.length,
-          feeds: RSS_FEEDS.map((feed) => ({
+          feedCount: rssFeeds.length,
+          keywordCount: Object.keys(keywordWeights).length,
+          locationCount: Object.keys(geoDict).length,
+          feeds: rssFeeds.map((feed) => ({
             source: feed.source,
             url: feed.url,
             reliability: feed.reliability,
