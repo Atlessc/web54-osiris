@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Activity,
@@ -17,6 +19,10 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
+
+import { useEffect, useMemo, useState } from "react";
+import type { ConfigStatusItem } from "@/types/local-config";
+import { getLocalConfigStatus } from "@/lib/local-config/client";
 
 const navCards = [
   {
@@ -211,6 +217,53 @@ const configStatus = [
 ];
 
 export function HomePage() {
+  const [configStatusItems, setConfigStatusItems] = useState<ConfigStatusItem[]>([]);
+  const [configStatusError, setConfigStatusError] = useState<string | null>(null);
+  const [configStatusLoading, setConfigStatusLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getLocalConfigStatus()
+      .then((status) => {
+        if (cancelled) return;
+
+        setConfigStatusItems(status.configs);
+        setConfigStatusError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+
+        setConfigStatusError(
+          error instanceof Error ? error.message : "Failed to load config status",
+        );
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setConfigStatusLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const configSummary = useMemo(() => {
+    const validCount = configStatusItems.filter((item) => item.valid).length;
+    const invalidCount = configStatusItems.filter(
+      (item) => item.status === "invalid",
+    ).length;
+    const missingCount = configStatusItems.filter(
+      (item) => item.status === "missing",
+    ).length;
+
+    return {
+      validCount,
+      invalidCount,
+      missingCount,
+      totalCount: configStatusItems.length,
+    };
+  }, [configStatusItems]);
   return (
     <main className="min-h-[calc(100dvh-var(--app-navbar-height))] bg-[var(--bg-void)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -440,47 +493,135 @@ export function HomePage() {
           <Panel
             eyebrow="Local Config Status"
             title="Configuration health"
-            description="Validation will become live after the local JSON bootstrap and config API are added."
+            description="Live validation status for local JSON files in osiris-data."
           >
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              {configStatus.map((config) => (
-                <div
-                  key={config.file}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between">
-                    <FileJson className="h-4 w-4 text-[var(--cyan-primary)]" />
-                    <CheckCircle2 className="h-4 w-4 text-[var(--text-muted)]" />
+            {configStatusLoading ? (
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-[var(--text-secondary)]">
+                Checking local config files...
+              </div>
+            ) : configStatusError ? (
+              <div className="rounded-2xl border border-[rgba(255,80,80,0.35)] bg-[rgba(255,80,80,0.08)] p-4">
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--alert-red)]">
+                  Config Status Error
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                  {configStatusError}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                      Valid
+                    </p>
+
+                    <p className="mt-2 font-mono text-3xl font-bold text-[var(--alert-green)]">
+                      {configSummary.validCount}
+                    </p>
                   </div>
 
-                  <p className="font-mono text-xs font-bold text-[var(--text-heading)]">
-                    {config.file}
-                  </p>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                      Invalid
+                    </p>
 
-                  <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                    {config.status}
-                  </p>
+                    <p className="mt-2 font-mono text-3xl font-bold text-[var(--alert-red)]">
+                      {configSummary.invalidCount}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                      Missing
+                    </p>
+
+                    <p className="mt-2 font-mono text-3xl font-bold text-[var(--gold-primary)]">
+                      {configSummary.missingCount}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="mt-4 rounded-2xl border border-[rgba(212,175,55,0.16)] bg-[rgba(212,175,55,0.06)] p-4">
-              <div className="flex gap-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-primary)]" />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                  {configStatusItems.map((config) => (
+                    <div
+                      key={config.name}
+                      className="min-w-0 rounded-2xl border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <FileJson className="h-4 w-4 shrink-0 text-[var(--cyan-primary)]" />
 
-                <div>
-                  <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold-primary)]">
-                    Config validation pending
-                  </p>
+                        {config.valid ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--alert-green)]" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--alert-red)]" />
+                        )}
+                      </div>
 
-                  <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                    This page is ready for config health, but the local JSON
-                    bootstrap and validation API are not wired yet. No fake
-                    green checks. We are classy like that.
-                  </p>
+                      <p className="break-words font-mono text-sm font-bold leading-6 text-[var(--text-heading)]">
+                        {config.filename}
+                      </p>
+
+                      <p
+                        className={[
+                          "mt-2 font-mono text-xs uppercase tracking-[0.18em]",
+                          config.valid
+                            ? "text-[var(--alert-green)]"
+                            : config.status === "missing"
+                              ? "text-[var(--gold-primary)]"
+                              : "text-[var(--alert-red)]",
+                        ].join(" ")}
+                      >
+                        {config.status}
+                      </p>
+
+                      {config.error ? (
+                        <p className="mt-3 break-words text-xs leading-5 text-[var(--alert-red)]">
+                          {config.error}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
+
+                {configSummary.invalidCount > 0 || configSummary.missingCount > 0 ? (
+                  <div className="rounded-2xl border border-[rgba(212,175,55,0.22)] bg-[rgba(212,175,55,0.06)] p-4">
+                    <div className="flex gap-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-primary)]" />
+
+                      <div>
+                        <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold-primary)]">
+                          Config Warning
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                          One or more local config files need attention. Open Settings
+                          later to repair them, or edit the affected JSON file directly
+                          while the settings UI is still being built.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-[rgba(0,255,170,0.18)] bg-[rgba(0,255,170,0.05)] p-4">
+                    <div className="flex gap-3">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--alert-green)]" />
+
+                      <div>
+                        <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--alert-green)]">
+                          Config Healthy
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                          All local config files exist and passed validation.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </Panel>
         </section>
       </div>

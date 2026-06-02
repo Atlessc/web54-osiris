@@ -1,0 +1,90 @@
+[
+  {
+    "id": "conflict-monitoring",
+    "slug": "conflict-monitoring",
+    "name": "Conflict Monitoring",
+    "description": "Military activity, armed conflict, border clashes, strikes, and escalation indicators.",
+    "enabled": true,
+    "keywordPacks": ["conflict", "kinetic", "military"],
+    "defaultSeverity": "watch",
+    "tone": "negative",
+    "tags": ["conflict", "military", "geopolitics"]
+  },
+  {
+    "id": "cybersecurity",
+    "slug": "cybersecurity",
+    "name": "Cybersecurity",
+    "description": "Cyberattacks, vulnerabilities, outages, breaches, and critical infrastructure cyber risk.",
+    "enabled": true,
+    "keywordPacks": ["cyber"],
+    "defaultSeverity": "watch",
+    "tone": "negative",
+    "tags": ["cyber", "infrastructure", "security"]
+  },
+  {
+    "id": "natural-hazards",
+    "slug": "natural-hazards",
+    "name": "Natural Hazards",
+    "description": "Earthquakes, severe weather, wildfires, floods, volcanic activity, and environmental hazards.",
+    "enabled": true,
+    "keywordPacks": ["natural-hazards"],
+    "defaultSeverity": "notice",
+    "tone": "negative",
+    "tags": ["hazards", "weather", "earth"]
+  },
+  {
+    "id": "infrastructure-disruption",
+    "slug": "infrastructure-disruption",
+    "name": "Infrastructure Disruption",
+    "description": "Power, transport, telecom, water, port, pipeline, and logistics disruptions.",
+    "enabled": true,
+    "keywordPacks": ["infrastructure"],
+    "defaultSeverity": "watch",
+    "tone": "negative",
+    "tags": ["infrastructure", "supply-chain", "resilience"]
+  },
+  {
+    "id": "civil-unrest",
+    "slug": "civil-unrest",
+    "name": "Civil Unrest",
+    "description": "Protests, riots, curfews, state crackdowns, demonstrations, and social instability.",
+    "enabled": true,
+    "keywordPacks": ["civil-unrest"],
+    "defaultSeverity": "watch",
+    "tone": "negative",
+    "tags": ["society", "politics", "unrest"]
+  },
+  {
+    "id": "humanitarian",
+    "slug": "humanitarian",
+    "name": "Humanitarian",
+    "description": "Humanitarian crises, displacement, aid delivery, food security, refugee movement, and relief operations.",
+    "enabled": true,
+    "keywordPacks": ["humanitarian"],
+    "defaultSeverity": "watch",
+    "tone": "mixed",
+    "tags": ["humanitarian", "aid", "displacement", "relief"]
+  },
+  {
+    "id": "supply-chain",
+    "slug": "supply-chain",
+    "name": "Supply Chain",
+    "description": "Shipping disruption, trade restrictions, commodity shocks, port congestion, logistics, and chokepoint risks.",
+    "enabled": true,
+    "keywordPacks": ["supply-chain"],
+    "defaultSeverity": "watch",
+    "tone": "mixed",
+    "tags": ["supply-chain", "shipping", "trade", "commodities"]
+  },
+  {
+    "id": "good-news",
+    "slug": "good-news",
+    "name": "Good News",
+    "description": "Positive developments, successful rescues, de-escalation, restored services, humanitarian progress, scientific breakthroughs, recovery milestones, and stability improvements.",
+    "enabled": true,
+    "keywordPacks": ["good-news"],
+    "defaultSeverity": "notice",
+    "tone": "positive",
+    "tags": ["positive", "recovery", "stability", "humanitarian", "progress"]
+  }
+]

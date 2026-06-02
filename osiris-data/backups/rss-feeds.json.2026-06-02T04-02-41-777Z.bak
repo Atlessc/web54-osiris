@@ -8,12 +8,7 @@
     "enabled": true,
     "reliabilityWeight": 0.85,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "general",
-      "breaking",
-      "international"
-    ]
+    "tags": ["world", "general", "breaking", "international"]
   },
   {
     "id": "aljazeera-world",
@@ -24,12 +19,7 @@
     "enabled": true,
     "reliabilityWeight": 0.8,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "middle-east",
-      "general",
-      "conflict"
-    ]
+    "tags": ["world", "middle-east", "general", "conflict"]
   },
   {
     "id": "nyt-world",
@@ -40,11 +30,7 @@
     "enabled": true,
     "reliabilityWeight": 0.8,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "general",
-      "new-york-times"
-    ]
+    "tags": ["world", "general", "new-york-times"]
   },
   {
     "id": "reuters-world",
@@ -55,12 +41,7 @@
     "enabled": true,
     "reliabilityWeight": 0.9,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "wire",
-      "general",
-      "breaking"
-    ]
+    "tags": ["world", "wire", "general", "breaking"]
   },
   {
     "id": "ap-top-news",
@@ -71,12 +52,7 @@
     "enabled": true,
     "reliabilityWeight": 0.9,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "wire",
-      "general",
-      "breaking"
-    ]
+    "tags": ["world", "wire", "general", "breaking"]
   },
   {
     "id": "dw-world",
@@ -87,12 +63,7 @@
     "enabled": true,
     "reliabilityWeight": 0.82,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "europe",
-      "germany",
-      "general"
-    ]
+    "tags": ["world", "europe", "germany", "general"]
   },
   {
     "id": "france24-world",
@@ -103,12 +74,7 @@
     "enabled": true,
     "reliabilityWeight": 0.82,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "europe",
-      "france",
-      "general"
-    ]
+    "tags": ["world", "europe", "france", "general"]
   },
   {
     "id": "rferl-latest",
@@ -119,13 +85,7 @@
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "europe",
-      "eurasia",
-      "russia",
-      "ukraine",
-      "central-asia"
-    ]
+    "tags": ["europe", "eurasia", "russia", "ukraine", "central-asia"]
   },
   {
     "id": "thedefensepost",
@@ -136,12 +96,7 @@
     "enabled": true,
     "reliabilityWeight": 0.72,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "defense",
-      "military",
-      "conflict",
-      "security"
-    ]
+    "tags": ["defense", "military", "conflict", "security"]
   },
   {
     "id": "defense-news",
@@ -152,12 +107,7 @@
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "defense",
-      "military",
-      "procurement",
-      "security"
-    ]
+    "tags": ["defense", "military", "procurement", "security"]
   },
   {
     "id": "war-on-the-rocks",
@@ -168,12 +118,7 @@
     "enabled": true,
     "reliabilityWeight": 0.76,
     "refreshIntervalMinutes": 60,
-    "tags": [
-      "defense",
-      "analysis",
-      "military",
-      "geopolitics"
-    ]
+    "tags": ["defense", "analysis", "military", "geopolitics"]
   },
   {
     "id": "cisa-alerts",
@@ -184,12 +129,7 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "cyber",
-      "security",
-      "government",
-      "infrastructure"
-    ]
+    "tags": ["cyber", "security", "government", "infrastructure"]
   },
   {
     "id": "bleepingcomputer",
@@ -200,12 +140,7 @@
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "cyber",
-      "ransomware",
-      "malware",
-      "breach"
-    ]
+    "tags": ["cyber", "ransomware", "malware", "breach"]
   },
   {
     "id": "krebsonsecurity",
@@ -216,12 +151,7 @@
     "enabled": true,
     "reliabilityWeight": 0.82,
     "refreshIntervalMinutes": 60,
-    "tags": [
-      "cyber",
-      "crime",
-      "breach",
-      "security"
-    ]
+    "tags": ["cyber", "crime", "breach", "security"]
   },
   {
     "id": "thehackernews",
@@ -232,12 +162,7 @@
     "enabled": true,
     "reliabilityWeight": 0.74,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "cyber",
-      "vulnerabilities",
-      "malware",
-      "security"
-    ]
+    "tags": ["cyber", "vulnerabilities", "malware", "security"]
   },
   {
     "id": "usgs-significant-earthquakes",
@@ -248,12 +173,7 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "earthquake",
-      "seismic",
-      "hazards",
-      "usgs"
-    ]
+    "tags": ["earthquake", "seismic", "hazards", "usgs"]
   },
   {
     "id": "usgs-45-earthquakes",
@@ -264,12 +184,7 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "earthquake",
-      "seismic",
-      "hazards",
-      "usgs"
-    ]
+    "tags": ["earthquake", "seismic", "hazards", "usgs"]
   },
   {
     "id": "noaa-national-hurricane-center",
@@ -280,12 +195,7 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "weather",
-      "hurricane",
-      "storm",
-      "noaa"
-    ]
+    "tags": ["weather", "hurricane", "storm", "noaa"]
   },
   {
     "id": "reliefweb-disasters",
@@ -296,12 +206,7 @@
     "enabled": true,
     "reliabilityWeight": 0.86,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "humanitarian",
-      "disaster",
-      "relief",
-      "crisis"
-    ]
+    "tags": ["humanitarian", "disaster", "relief", "crisis"]
   },
   {
     "id": "who-news",
@@ -312,11 +217,6 @@
     "enabled": true,
     "reliabilityWeight": 0.92,
     "refreshIntervalMinutes": 60,
-    "tags": [
-      "health",
-      "outbreak",
-      "disease",
-      "who"
-    ]
+    "tags": ["health", "outbreak", "disease", "who"]
   }
 ]

@@ -1,8 +1,13 @@
-export default function SettingsPage() {
-  return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Settings Details</h1>
-      <p>More info coming soon...</p>
-    </div>
-  );
-  };
+import type { Metadata } from "next";
+
+import { SettingsSectionPage } from "@/features/settings/components/SettingsSectionPage";
+
+export const metadata: Metadata = {
+  title: "Settings | OSIRIS Intelligence",
+  description:
+    "Manage OSIRIS local configuration, sources, keywords, locations, topics, entities, and import/export settings.",
+};
+
+export default function Page() {
+  return <SettingsSectionPage />;
+}
