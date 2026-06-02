@@ -1,0 +1,20 @@
+{
+  "theme": "dark",
+  "accentColor": "gold",
+  "density": "compact",
+  "defaultLandingPage": "/",
+  "autoRefresh": true,
+  "refreshIntervalMinutes": 15,
+  "defaultSeverityThreshold": "watch",
+  "defaultConfidenceThreshold": "low",
+  "showDebugPanels": false,
+  "enabledLayers": [
+    "global-incidents",
+    "news-intel",
+    "earthquakes",
+    "cctv",
+    "maritime",
+    "day-night",
+    "sdk-stream"
+  ]
+}

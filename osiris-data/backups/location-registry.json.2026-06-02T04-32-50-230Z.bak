@@ -1,0 +1,135 @@
+[
+  {
+    "id": "gaza-strip",
+    "name": "Gaza Strip",
+    "type": "region",
+    "region": "middle-east",
+    "aliases": [
+      "Gaza"
+    ],
+    "coordinates": {
+      "lat": 31.3547,
+      "lng": 34.3088
+    },
+    "watchPriority": "high",
+    "tags": [
+      "middle-east",
+      "conflict",
+      "humanitarian"
+    ]
+  },
+  {
+    "id": "portland",
+    "name": "Portland, OR",
+    "type": "city",
+    "region": "global",
+    "aliases": [
+      "Oregon"
+    ],
+    "coordinates": {
+      "lat": 45.5152,
+      "lng": 122.6784
+    },
+    "watchPriority": "high",
+    "tags": []
+  },
+  {
+    "id": "red-sea",
+    "name": "Red Sea",
+    "type": "maritime-region",
+    "region": "middle-east",
+    "aliases": [
+      "Bab el-Mandeb",
+      "Bab al-Mandab"
+    ],
+    "coordinates": {
+      "lat": 20.2802,
+      "lng": 38.5126
+    },
+    "watchPriority": "high",
+    "tags": [
+      "middle-east",
+      "maritime",
+      "shipping"
+    ]
+  },
+  {
+    "id": "south-china-sea",
+    "name": "South China Sea",
+    "type": "maritime-region",
+    "region": "indo-pacific",
+    "aliases": [
+      "SCS"
+    ],
+    "coordinates": {
+      "lat": 12,
+      "lng": 114
+    },
+    "watchPriority": "high",
+    "tags": [
+      "indo-pacific",
+      "maritime",
+      "trade"
+    ]
+  },
+  {
+    "id": "taiwan",
+    "name": "Taiwan",
+    "type": "country",
+    "region": "east-asia",
+    "aliases": [
+      "Republic of China",
+      "ROC"
+    ],
+    "coordinates": {
+      "lat": 23.6978,
+      "lng": 120.9605
+    },
+    "watchPriority": "high",
+    "tags": [
+      "east-asia",
+      "semiconductors",
+      "strait"
+    ]
+  },
+  {
+    "id": "ukraine",
+    "name": "Ukraine",
+    "type": "country",
+    "region": "europe",
+    "aliases": [
+      "UA"
+    ],
+    "coordinates": {
+      "lat": 48.3794,
+      "lng": 31.1656
+    },
+    "watchPriority": "high",
+    "tags": [
+      "europe",
+      "conflict",
+      "black-sea"
+    ]
+  },
+  {
+    "id": "united-states",
+    "name": "United States",
+    "type": "country",
+    "region": "north-america",
+    "aliases": [
+      "USA",
+      "US",
+      "United States of America"
+    ],
+    "coordinates": {
+      "lat": 39.8283,
+      "lng": -98.5795
+    },
+    "watchPriority": "normal",
+    "tags": [
+      "north-america",
+      "nato",
+      "g7"
+    ]
+  }
+]
