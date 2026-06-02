@@ -36,6 +36,13 @@ const EMPTY_FEED: RssFeedConfig = {
 const categoryOptions = [
   "world-news",
   "regional-intel",
+  "us-news",
+  "local-news",
+  "portland-local",
+  "technology",
+  "business",
+  "finance",
+  "supply-chain",
   "defense",
   "defense-analysis",
   "cybersecurity",

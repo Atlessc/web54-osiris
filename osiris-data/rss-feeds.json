@@ -8,12 +8,18 @@
     "enabled": true,
     "reliabilityWeight": 0.85,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "general",
-      "breaking",
-      "international"
-    ]
+    "tags": ["world", "general", "breaking", "international"]
+  },
+  {
+    "id": "bbc-news",
+    "name": "BBC News",
+    "url": "https://feeds.bbci.co.uk/news/rss.xml",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.85,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "general", "breaking", "uk"]
   },
   {
     "id": "aljazeera-world",
@@ -24,12 +30,7 @@
     "enabled": true,
     "reliabilityWeight": 0.8,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "middle-east",
-      "general",
-      "conflict"
-    ]
+    "tags": ["world", "middle-east", "general", "conflict"]
   },
   {
     "id": "nyt-world",
@@ -40,11 +41,29 @@
     "enabled": true,
     "reliabilityWeight": 0.8,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "general",
-      "new-york-times"
-    ]
+    "tags": ["world", "general", "new-york-times"]
+  },
+  {
+    "id": "nyt-us",
+    "name": "NYT U.S.",
+    "url": "https://rss.nytimes.com/services/xml/rss/nyt/US.xml",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.8,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "new-york-times"]
+  },
+  {
+    "id": "nyt-ny-region",
+    "name": "NYT New York Region",
+    "url": "https://rss.nytimes.com/services/xml/rss/nyt/NYRegion.xml",
+    "type": "rss",
+    "category": "local-news",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "new-york", "nyc", "local"]
   },
   {
     "id": "reuters-world",
@@ -55,12 +74,7 @@
     "enabled": true,
     "reliabilityWeight": 0.9,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "wire",
-      "general",
-      "breaking"
-    ]
+    "tags": ["world", "wire", "general", "breaking"]
   },
   {
     "id": "ap-top-news",
@@ -71,12 +85,7 @@
     "enabled": true,
     "reliabilityWeight": 0.9,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "wire",
-      "general",
-      "breaking"
-    ]
+    "tags": ["world", "wire", "general", "breaking"]
   },
   {
     "id": "dw-world",
@@ -87,12 +96,7 @@
     "enabled": true,
     "reliabilityWeight": 0.82,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "europe",
-      "germany",
-      "general"
-    ]
+    "tags": ["world", "europe", "germany", "general"]
   },
   {
     "id": "france24-world",
@@ -103,12 +107,7 @@
     "enabled": true,
     "reliabilityWeight": 0.82,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "world",
-      "europe",
-      "france",
-      "general"
-    ]
+    "tags": ["world", "europe", "france", "general"]
   },
   {
     "id": "rferl-latest",
@@ -119,13 +118,106 @@
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "europe",
-      "eurasia",
-      "russia",
-      "ukraine",
-      "central-asia"
-    ]
+    "tags": ["europe", "eurasia", "russia", "ukraine", "central-asia"]
+  },
+  {
+    "id": "npr-news",
+    "name": "NPR News",
+    "url": "https://feeds.npr.org/1001/rss.xml",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "public-radio", "general"]
+  },
+  {
+    "id": "npr-us",
+    "name": "NPR U.S.",
+    "url": "https://feeds.npr.org/1003/rss.xml",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "public-radio"]
+  },
+  {
+    "id": "npr-world",
+    "name": "NPR World",
+    "url": "https://feeds.npr.org/1004/rss.xml",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "international", "public-radio"]
+  },
+  {
+    "id": "pbs-newshour",
+    "name": "PBS NewsHour",
+    "url": "https://www.pbs.org/newshour/feeds/rss/headlines",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "national", "public-media"]
+  },
+  {
+    "id": "usa-today-top",
+    "name": "USA Today Top Stories",
+    "url": "https://rssfeeds.usatoday.com/usatoday-NewsTopStories",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.72,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "general"]
+  },
+  {
+    "id": "cbs-news",
+    "name": "CBS News",
+    "url": "https://www.cbsnews.com/latest/rss/main",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.75,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "breaking"]
+  },
+  {
+    "id": "nbc-news",
+    "name": "NBC News",
+    "url": "https://feeds.nbcnews.com/nbcnews/public/news",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.75,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "breaking"]
+  },
+  {
+    "id": "abc-news-top",
+    "name": "ABC News Top Stories",
+    "url": "https://abcnews.go.com/abcnews/topstories",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.75,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "breaking"]
+  },
+  {
+    "id": "politico-top",
+    "name": "Politico Top Stories",
+    "url": "https://www.politico.com/rss/politicopicks.xml",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.74,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "politics", "government"]
   },
   {
     "id": "thedefensepost",
@@ -136,12 +228,7 @@
     "enabled": true,
     "reliabilityWeight": 0.72,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "defense",
-      "military",
-      "conflict",
-      "security"
-    ]
+    "tags": ["defense", "military", "conflict", "security"]
   },
   {
     "id": "defense-news",
@@ -152,12 +239,7 @@
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "defense",
-      "military",
-      "procurement",
-      "security"
-    ]
+    "tags": ["defense", "military", "procurement", "security"]
   },
   {
     "id": "war-on-the-rocks",
@@ -168,12 +250,7 @@
     "enabled": true,
     "reliabilityWeight": 0.76,
     "refreshIntervalMinutes": 60,
-    "tags": [
-      "defense",
-      "analysis",
-      "military",
-      "geopolitics"
-    ]
+    "tags": ["defense", "analysis", "military", "geopolitics"]
   },
   {
     "id": "cisa-alerts",
@@ -184,12 +261,7 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "cyber",
-      "security",
-      "government",
-      "infrastructure"
-    ]
+    "tags": ["cyber", "security", "government", "infrastructure"]
   },
   {
     "id": "bleepingcomputer",
@@ -200,12 +272,7 @@
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "cyber",
-      "ransomware",
-      "malware",
-      "breach"
-    ]
+    "tags": ["cyber", "ransomware", "malware", "breach"]
   },
   {
     "id": "krebsonsecurity",
@@ -216,12 +283,7 @@
     "enabled": true,
     "reliabilityWeight": 0.82,
     "refreshIntervalMinutes": 60,
-    "tags": [
-      "cyber",
-      "crime",
-      "breach",
-      "security"
-    ]
+    "tags": ["cyber", "crime", "breach", "security"]
   },
   {
     "id": "thehackernews",
@@ -232,12 +294,282 @@
     "enabled": true,
     "reliabilityWeight": 0.74,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "cyber",
-      "vulnerabilities",
-      "malware",
-      "security"
-    ]
+    "tags": ["cyber", "vulnerabilities", "malware", "security"]
+  },
+  {
+    "id": "securityweek",
+    "name": "SecurityWeek",
+    "url": "https://www.securityweek.com/feed/",
+    "type": "rss",
+    "category": "cybersecurity",
+    "enabled": true,
+    "reliabilityWeight": 0.76,
+    "refreshIntervalMinutes": 30,
+    "tags": ["cyber", "security", "enterprise", "vulnerability"]
+  },
+  {
+    "id": "dark-reading",
+    "name": "Dark Reading",
+    "url": "https://www.darkreading.com/rss.xml",
+    "type": "rss",
+    "category": "cybersecurity",
+    "enabled": true,
+    "reliabilityWeight": 0.74,
+    "refreshIntervalMinutes": 30,
+    "tags": ["cyber", "enterprise", "threats", "security"]
+  },
+  {
+    "id": "techcrunch",
+    "name": "TechCrunch",
+    "url": "https://techcrunch.com/feed/",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.72,
+    "refreshIntervalMinutes": 30,
+    "tags": ["tech", "startups", "venture", "business"]
+  },
+  {
+    "id": "the-verge",
+    "name": "The Verge",
+    "url": "https://www.theverge.com/rss/index.xml",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.72,
+    "refreshIntervalMinutes": 30,
+    "tags": ["tech", "consumer-tech", "platforms"]
+  },
+  {
+    "id": "wired",
+    "name": "WIRED",
+    "url": "https://www.wired.com/feed/rss",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "science", "security", "culture"]
+  },
+  {
+    "id": "ars-technica",
+    "name": "Ars Technica",
+    "url": "https://feeds.arstechnica.com/arstechnica/index",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.8,
+    "refreshIntervalMinutes": 30,
+    "tags": ["tech", "science", "policy", "security"]
+  },
+  {
+    "id": "hacker-news",
+    "name": "Hacker News",
+    "url": "https://news.ycombinator.com/rss",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.65,
+    "refreshIntervalMinutes": 15,
+    "tags": ["tech", "developer", "startups", "community"]
+  },
+  {
+    "id": "github-blog",
+    "name": "GitHub Blog",
+    "url": "https://github.blog/feed/",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "developer", "github", "software"]
+  },
+  {
+    "id": "stackoverflow-blog",
+    "name": "Stack Overflow Blog",
+    "url": "https://stackoverflow.blog/feed/",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.76,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "developer", "software"]
+  },
+  {
+    "id": "google-blog",
+    "name": "Google Blog",
+    "url": "https://blog.google/rss/",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "google", "ai", "platforms"]
+  },
+  {
+    "id": "microsoft-blog",
+    "name": "Microsoft Blog",
+    "url": "https://blogs.microsoft.com/feed/",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "microsoft", "enterprise", "ai"]
+  },
+  {
+    "id": "apple-newsroom",
+    "name": "Apple Newsroom",
+    "url": "https://www.apple.com/newsroom/rss-feed.rss",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "apple", "consumer-tech"]
+  },
+  {
+    "id": "cloudflare-blog",
+    "name": "Cloudflare Blog",
+    "url": "https://blog.cloudflare.com/rss/",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "cloudflare", "security", "infrastructure"]
+  },
+  {
+    "id": "mozilla-blog",
+    "name": "Mozilla Blog",
+    "url": "https://blog.mozilla.org/en/feed/",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.76,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "mozilla", "browser", "open-web"]
+  },
+  {
+    "id": "vercel-blog",
+    "name": "Vercel Blog",
+    "url": "https://vercel.com/blog/rss.xml",
+    "type": "rss",
+    "category": "technology",
+    "enabled": true,
+    "reliabilityWeight": 0.76,
+    "refreshIntervalMinutes": 60,
+    "tags": ["tech", "vercel", "web-development", "frontend"]
+  },
+  {
+    "id": "cnbc-business",
+    "name": "CNBC Business",
+    "url": "https://www.cnbc.com/id/10001147/device/rss/rss.html",
+    "type": "rss",
+    "category": "business",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 30,
+    "tags": ["business", "markets", "companies"]
+  },
+  {
+    "id": "cnbc-finance",
+    "name": "CNBC Finance",
+    "url": "https://www.cnbc.com/id/10000664/device/rss/rss.html",
+    "type": "rss",
+    "category": "finance",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 30,
+    "tags": ["finance", "markets", "economy"]
+  },
+  {
+    "id": "marketwatch-top",
+    "name": "MarketWatch Top Stories",
+    "url": "https://feeds.marketwatch.com/marketwatch/topstories/",
+    "type": "rss",
+    "category": "finance",
+    "enabled": true,
+    "reliabilityWeight": 0.76,
+    "refreshIntervalMinutes": 30,
+    "tags": ["finance", "markets", "stocks", "economy"]
+  },
+  {
+    "id": "yahoo-finance",
+    "name": "Yahoo Finance",
+    "url": "https://finance.yahoo.com/news/rssindex",
+    "type": "rss",
+    "category": "finance",
+    "enabled": true,
+    "reliabilityWeight": 0.72,
+    "refreshIntervalMinutes": 30,
+    "tags": ["finance", "markets", "business"]
+  },
+  {
+    "id": "federal-reserve-press",
+    "name": "Federal Reserve Press Releases",
+    "url": "https://www.federalreserve.gov/feeds/press_all.xml",
+    "type": "rss",
+    "category": "finance",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 60,
+    "tags": ["finance", "federal-reserve", "monetary-policy", "official"]
+  },
+  {
+    "id": "sec-press",
+    "name": "SEC Press Releases",
+    "url": "https://www.sec.gov/news/pressreleases.rss",
+    "type": "rss",
+    "category": "finance",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 60,
+    "tags": ["finance", "sec", "regulation", "official"]
+  },
+  {
+    "id": "imf-news",
+    "name": "IMF News",
+    "url": "https://www.imf.org/en/News/RSS",
+    "type": "rss",
+    "category": "finance",
+    "enabled": true,
+    "reliabilityWeight": 0.9,
+    "refreshIntervalMinutes": 60,
+    "tags": ["finance", "global-economy", "imf", "official"]
+  },
+  {
+    "id": "freightwaves",
+    "name": "FreightWaves",
+    "url": "https://www.freightwaves.com/feed",
+    "type": "rss",
+    "category": "supply-chain",
+    "enabled": true,
+    "reliabilityWeight": 0.76,
+    "refreshIntervalMinutes": 30,
+    "tags": ["supply-chain", "logistics", "freight", "transport"]
+  },
+  {
+    "id": "supply-chain-dive",
+    "name": "Supply Chain Dive",
+    "url": "https://www.supplychaindive.com/feeds/news/",
+    "type": "rss",
+    "category": "supply-chain",
+    "enabled": true,
+    "reliabilityWeight": 0.74,
+    "refreshIntervalMinutes": 60,
+    "tags": ["supply-chain", "logistics", "business"]
+  },
+  {
+    "id": "gcaptain",
+    "name": "gCaptain",
+    "url": "https://gcaptain.com/feed/",
+    "type": "rss",
+    "category": "supply-chain",
+    "enabled": true,
+    "reliabilityWeight": 0.74,
+    "refreshIntervalMinutes": 30,
+    "tags": ["maritime", "shipping", "ports", "supply-chain"]
   },
   {
     "id": "usgs-significant-earthquakes",
@@ -248,12 +580,7 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "earthquake",
-      "seismic",
-      "hazards",
-      "usgs"
-    ]
+    "tags": ["earthquake", "seismic", "hazards", "usgs", "official"]
   },
   {
     "id": "usgs-45-earthquakes",
@@ -264,12 +591,7 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 15,
-    "tags": [
-      "earthquake",
-      "seismic",
-      "hazards",
-      "usgs"
-    ]
+    "tags": ["earthquake", "seismic", "hazards", "usgs", "official"]
   },
   {
     "id": "noaa-national-hurricane-center",
@@ -280,12 +602,18 @@
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "weather",
-      "hurricane",
-      "storm",
-      "noaa"
-    ]
+    "tags": ["weather", "hurricane", "storm", "noaa", "official"]
+  },
+  {
+    "id": "noaa-spc",
+    "name": "NOAA Storm Prediction Center",
+    "url": "https://www.spc.noaa.gov/products/spcrss.xml",
+    "type": "rss",
+    "category": "weather",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 30,
+    "tags": ["weather", "storms", "tornado", "noaa", "official"]
   },
   {
     "id": "reliefweb-disasters",
@@ -296,12 +624,18 @@
     "enabled": true,
     "reliabilityWeight": 0.86,
     "refreshIntervalMinutes": 30,
-    "tags": [
-      "humanitarian",
-      "disaster",
-      "relief",
-      "crisis"
-    ]
+    "tags": ["humanitarian", "disaster", "relief", "crisis"]
+  },
+  {
+    "id": "reliefweb-headlines",
+    "name": "ReliefWeb Headlines",
+    "url": "https://reliefweb.int/updates/rss.xml",
+    "type": "rss",
+    "category": "humanitarian",
+    "enabled": true,
+    "reliabilityWeight": 0.86,
+    "refreshIntervalMinutes": 30,
+    "tags": ["humanitarian", "relief", "crisis", "global"]
   },
   {
     "id": "who-news",
@@ -312,11 +646,171 @@
     "enabled": true,
     "reliabilityWeight": 0.92,
     "refreshIntervalMinutes": 60,
-    "tags": [
-      "health",
-      "outbreak",
-      "disease",
-      "who"
-    ]
+    "tags": ["health", "outbreak", "disease", "who", "official"]
+  },
+  {
+    "id": "cdc-newsroom",
+    "name": "CDC Newsroom",
+    "url": "https://tools.cdc.gov/api/v2/resources/media/403372.rss",
+    "type": "rss",
+    "category": "health-security",
+    "enabled": true,
+    "reliabilityWeight": 0.9,
+    "refreshIntervalMinutes": 60,
+    "tags": ["health", "cdc", "usa", "official"]
+  },
+  {
+    "id": "gothamist",
+    "name": "Gothamist NYC",
+    "url": "https://gothamist.com/feed",
+    "type": "rss",
+    "category": "local-news",
+    "enabled": true,
+    "reliabilityWeight": 0.68,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "new-york", "nyc", "local"]
+  },
+  {
+    "id": "la-times-local",
+    "name": "Los Angeles Times Local",
+    "url": "https://www.latimes.com/local/rss2.0.xml",
+    "type": "rss",
+    "category": "local-news",
+    "enabled": true,
+    "reliabilityWeight": 0.76,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "los-angeles", "california", "local"]
+  },
+  {
+    "id": "laist",
+    "name": "LAist",
+    "url": "https://laist.com/news/rss",
+    "type": "rss",
+    "category": "local-news",
+    "enabled": true,
+    "reliabilityWeight": 0.68,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "los-angeles", "california", "local"]
+  },
+  {
+    "id": "sfgate-news",
+    "name": "SFGATE News",
+    "url": "https://www.sfgate.com/rss/feed/News-448.php",
+    "type": "rss",
+    "category": "local-news",
+    "enabled": true,
+    "reliabilityWeight": 0.66,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "san-francisco", "bay-area", "local"]
+  },
+  {
+    "id": "seattle-times-local",
+    "name": "Seattle Times Local",
+    "url": "https://www.seattletimes.com/seattle-news/feed/",
+    "type": "rss",
+    "category": "local-news",
+    "enabled": true,
+    "reliabilityWeight": 0.74,
+    "refreshIntervalMinutes": 30,
+    "tags": ["usa", "seattle", "washington", "local"]
+  },
+  {
+    "id": "crosscut",
+    "name": "Crosscut",
+    "url": "https://crosscut.com/rss.xml",
+    "type": "rss",
+    "category": "local-news",
+    "enabled": true,
+    "reliabilityWeight": 0.68,
+    "refreshIntervalMinutes": 60,
+    "tags": ["usa", "seattle", "washington", "local", "politics"]
+  },
+  {
+    "id": "opb-news",
+    "name": "OPB News",
+    "url": "https://www.opb.org/news/rss/",
+    "type": "rss",
+    "category": "portland-local",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 30,
+    "tags": ["oregon", "portland", "pnw", "local", "public-media"]
+  },
+  {
+    "id": "oregonlive-news",
+    "name": "OregonLive News",
+    "url": "https://www.oregonlive.com/arc/outboundfeeds/rss/?outputType=xml",
+    "type": "rss",
+    "category": "portland-local",
+    "enabled": true,
+    "reliabilityWeight": 0.72,
+    "refreshIntervalMinutes": 30,
+    "tags": ["oregon", "portland", "local"]
+  },
+  {
+    "id": "willamette-week-news",
+    "name": "Willamette Week News",
+    "url": "https://www.wweek.com/feeds/news/",
+    "type": "rss",
+    "category": "portland-local",
+    "enabled": true,
+    "reliabilityWeight": 0.68,
+    "refreshIntervalMinutes": 30,
+    "tags": ["oregon", "portland", "local", "alternative-weekly"]
+  },
+  {
+    "id": "koin-local",
+    "name": "KOIN Local",
+    "url": "https://www.koin.com/feed/",
+    "type": "rss",
+    "category": "portland-local",
+    "enabled": true,
+    "reliabilityWeight": 0.66,
+    "refreshIntervalMinutes": 30,
+    "tags": ["oregon", "portland", "local", "tv-news"]
+  },
+  {
+    "id": "kgw-local",
+    "name": "KGW Local",
+    "url": "https://www.kgw.com/feeds/syndication/rss/news/local",
+    "type": "rss",
+    "category": "portland-local",
+    "enabled": true,
+    "reliabilityWeight": 0.66,
+    "refreshIntervalMinutes": 30,
+    "tags": ["oregon", "portland", "local", "tv-news"]
+  },
+  {
+    "id": "portland-mercury",
+    "name": "Portland Mercury",
+    "url": "https://www.portlandmercury.com/portland/Rss.xml",
+    "type": "rss",
+    "category": "portland-local",
+    "enabled": true,
+    "reliabilityWeight": 0.62,
+    "refreshIntervalMinutes": 60,
+    "tags": ["oregon", "portland", "local", "alternative-weekly"]
+  },
+  {
+    "id": "good-news-network",
+    "name": "Good News Network",
+    "url": "https://www.goodnewsnetwork.org/feed/",
+    "type": "rss",
+    "category": "good-news",
+    "enabled": true,
+    "reliabilityWeight": 0.58,
+    "refreshIntervalMinutes": 60,
+    "tags": ["good-news", "positive", "solutions"]
+  },
+  {
+    "id": "positive-news",
+    "name": "Positive News",
+    "url": "https://www.positive.news/feed/",
+    "type": "rss",
+    "category": "good-news",
+    "enabled": true,
+    "reliabilityWeight": 0.6,
+    "refreshIntervalMinutes": 60,
+    "tags": ["good-news", "positive", "solutions"]
   }
 ]

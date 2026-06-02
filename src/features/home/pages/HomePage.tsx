@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -8,10 +9,12 @@ import {
   CheckCircle2,
   Clock3,
   Database,
+  ExternalLink,
   FileJson,
   Globe2,
   Map,
   Radar,
+  RefreshCcw,
   Search,
   Settings,
   ShieldAlert,
@@ -20,9 +23,13 @@ import {
   WifiOff,
 } from "lucide-react";
 
-import { useEffect, useMemo, useState } from "react";
-import type { ConfigStatusItem } from "@/types/local-config";
-import { getLocalConfigStatus } from "@/lib/local-config/client";
+import type { ConfigStatusItem, ProfileConfig } from "@/types/local-config";
+import {
+  getLocalConfig,
+  getLocalConfigStatus,
+  getSourceHealth,
+  type SourceHealthResponse,
+} from "@/lib/local-config/client";
 
 const navCards = [
   {
@@ -69,179 +76,283 @@ const navCards = [
   },
 ];
 
-const overviewMetrics = [
-  {
-    label: "Active Events",
-    value: "—",
-    note: "Waiting for local event cache",
-    icon: Activity,
-  },
-  {
-    label: "High Watch Events",
-    value: "—",
-    note: "Severity scoring not wired yet",
-    icon: ShieldAlert,
-  },
-  {
-    label: "Active Signals",
-    value: "—",
-    note: "Signal engine pending",
-    icon: Radar,
-  },
-  {
-    label: "Sources Online",
-    value: "—",
-    note: "Source health pending",
-    icon: Wifi,
-  },
-  {
-    label: "Sources Warning",
-    value: "—",
-    note: "Diagnostics pending",
-    icon: AlertTriangle,
-  },
-  {
-    label: "Sources Offline",
-    value: "—",
-    note: "Diagnostics pending",
-    icon: WifiOff,
-  },
-  {
-    label: "Last Refresh",
-    value: "Pending",
-    note: "No local refresh timestamp yet",
-    icon: Clock3,
-  },
-];
+type SeverityLevel = "low" | "watch" | "elevated" | "high" | "critical";
+type ConfidenceLevel = "low" | "moderate" | "high";
 
-const priorityWatch = [
-  {
-    title: "No priority watch items yet",
-    meta: "Awaiting local event scoring",
-    description:
-      "Once events, source counts, confidence, and severity are wired in, this panel will show the top 3–5 items needing attention.",
-  },
-  {
-    title: "Scoring model pending",
-    meta: "Severity · Confidence · Recency",
-    description:
-      "Priority ranking will use severity, confidence, source count, recency, and signal involvement.",
-  },
-];
+interface GdeltEvent {
+  id: string;
+  title: string;
+  name?: string;
+  description?: string;
+  url?: string;
+  source?: string;
+  publishedAt: string | null;
+  fetchedAt?: string;
+  articleAgeMinutes?: number | null;
+  matchedKeywords?: string[];
+  keywordFamilies?: string[];
+  severityScore?: number;
+  severityLevel?: SeverityLevel;
+  confidenceScore?: number;
+  confidenceLevel?: ConfidenceLevel;
+  matchedLocation?: {
+    label: string;
+    key: string;
+    precision: string;
+  };
+  whyFlagged?: string;
+}
 
-const feedPreview = [
-  {
-    title: "Feed preview waiting for local event cache",
-    meta: "Newest 5 items will appear here",
-    description:
-      "After ingestion and cache are connected, this section will show fresh TLDR-style event cards.",
-    href: "/feed",
-  },
-  {
-    title: "Event dossiers not generated yet",
-    meta: "Source attribution pending",
-    description:
-      "Event cards will eventually link into source-backed dossier pages with raw evidence and related signals.",
-    href: "/events/example-event",
-  },
-];
+interface DerivedSignal {
+  id: string;
+  title: string;
+  severity: SeverityLevel;
+  confidence: ConfidenceLevel;
+  evidenceCount: number;
+  sources: string[];
+  matchedKeywords: string[];
+  keywordFamilies: string[];
+  newestPublishedAt: string | null;
+  explanation: string;
+  location: {
+    label: string;
+    lat: number;
+    lng: number;
+    precision: string;
+  };
+}
 
-const signalSnapshot = [
-  {
-    label: "New",
-    value: "—",
-  },
-  {
-    label: "Watching",
-    value: "—",
-  },
-  {
-    label: "Escalating",
-    value: "—",
-  },
-  {
-    label: "Cooling",
-    value: "—",
-  },
-];
+interface GdeltResponse {
+  events: GdeltEvent[];
+  derivedSignals: DerivedSignal[];
+  total: number;
+  derivedTotal: number;
+  timestamp: string;
+  source: string;
+  sourceNote?: string;
+  metadata?: {
+    feedCount?: number;
+    keywordCount?: number;
+    locationCount?: number;
+  };
+  error?: string;
+}
 
-const sourceHealth = [
-  {
-    label: "Online",
-    value: "—",
-    icon: Wifi,
-  },
-  {
-    label: "Warning",
-    value: "—",
-    icon: AlertTriangle,
-  },
-  {
-    label: "Offline",
-    value: "—",
-    icon: WifiOff,
-  },
-  {
-    label: "Last Pull",
-    value: "Pending",
-    icon: Clock3,
-  },
-  {
-    label: "Failed Sources",
-    value: "—",
-    icon: ShieldAlert,
-  },
-];
+interface HomeLoadState {
+  profile: ProfileConfig | null;
+  configStatusItems: ConfigStatusItem[];
+  sourceHealth: SourceHealthResponse | null;
+  gdelt: GdeltResponse | null;
+}
 
-const configStatus = [
-  {
-    file: "profile.json",
-    status: "Pending bootstrap",
-  },
-  {
-    file: "settings.json",
-    status: "Pending bootstrap",
-  },
-  {
-    file: "rss-feeds.json",
-    status: "Pending bootstrap",
-  },
-  {
-    file: "keyword-packs.json",
-    status: "Pending bootstrap",
-  },
-  {
-    file: "location-registry.json",
-    status: "Pending bootstrap",
-  },
-];
+const severityRank: Record<SeverityLevel, number> = {
+  low: 1,
+  watch: 2,
+  elevated: 3,
+  high: 4,
+  critical: 5,
+};
+
+const confidenceRank: Record<ConfidenceLevel, number> = {
+  low: 1,
+  moderate: 2,
+  high: 3,
+};
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleString();
+}
+
+function formatRelativeTime(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60_000));
+
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.round(diffHours / 24);
+
+  return `${diffDays}d ago`;
+}
+
+function getEventPriorityScore(event: GdeltEvent) {
+  const severityScore = event.severityScore ?? 0;
+  const confidenceScore = event.confidenceScore ?? 0;
+  const severityBoost = event.severityLevel ? severityRank[event.severityLevel] * 12 : 0;
+  const confidenceBoost = event.confidenceLevel
+    ? confidenceRank[event.confidenceLevel] * 8
+    : 0;
+
+  let recencyBoost = 0;
+
+  if (typeof event.articleAgeMinutes === "number") {
+    if (event.articleAgeMinutes <= 30) recencyBoost = 20;
+    else if (event.articleAgeMinutes <= 120) recencyBoost = 12;
+    else if (event.articleAgeMinutes <= 360) recencyBoost = 6;
+  }
+
+  return severityScore + confidenceScore + severityBoost + confidenceBoost + recencyBoost;
+}
+
+function getSignalState(signal: DerivedSignal) {
+  if (signal.severity === "critical" || signal.severity === "high") {
+    return "Escalating";
+  }
+
+  if (signal.evidenceCount >= 3) {
+    return "Watching";
+  }
+
+  if (signal.newestPublishedAt) {
+    const date = new Date(signal.newestPublishedAt);
+
+    if (!Number.isNaN(date.getTime())) {
+      const ageMinutes = Math.max(0, Math.round((Date.now() - date.getTime()) / 60_000));
+
+      if (ageMinutes > 360) return "Cooling";
+    }
+  }
+
+  return "New";
+}
+
+function getSeverityClassName(severity?: SeverityLevel) {
+  if (severity === "critical" || severity === "high") {
+    return "text-[var(--alert-red)]";
+  }
+
+  if (severity === "elevated" || severity === "watch") {
+    return "text-[var(--gold-primary)]";
+  }
+
+  return "text-[var(--text-muted)]";
+}
+
+function getSourceStatusClassName(status: "online" | "warning" | "offline") {
+  if (status === "online") return "text-[var(--alert-green)]";
+  if (status === "warning") return "text-[var(--gold-primary)]";
+  return "text-[var(--alert-red)]";
+}
 
 export function HomePage() {
-  const [configStatusItems, setConfigStatusItems] = useState<ConfigStatusItem[]>([]);
+  const [state, setState] = useState<HomeLoadState>({
+    profile: null,
+    configStatusItems: [],
+    sourceHealth: null,
+    gdelt: null,
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
   const [configStatusError, setConfigStatusError] = useState<string | null>(null);
-  const [configStatusLoading, setConfigStatusLoading] = useState(true);
+  const [sourceHealthError, setSourceHealthError] = useState<string | null>(null);
+  const [gdeltError, setGdeltError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  async function loadHomeData(mode: "initial" | "refresh" = "initial") {
+    if (mode === "initial") {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
+    setConfigStatusError(null);
+    setSourceHealthError(null);
+    setGdeltError(null);
+    setProfileError(null);
+
+    const [profileResult, configResult, sourceHealthResult, gdeltResult] =
+      await Promise.allSettled([
+        getLocalConfig("profile"),
+        getLocalConfigStatus(),
+        getSourceHealth(),
+        fetch("/api/gdelt", { cache: "no-store" }).then(async (response) => {
+          const payload = await response.json();
+
+          if (!response.ok) {
+            throw new Error(payload.error ?? "Failed to load global incidents");
+          }
+
+          return payload as GdeltResponse;
+        }),
+      ]);
+
+    setState((current) => {
+      const next = { ...current };
+
+      if (profileResult.status === "fulfilled") {
+        next.profile = profileResult.value;
+      } else {
+        setProfileError(
+          profileResult.reason instanceof Error
+            ? profileResult.reason.message
+            : "Failed to load profile",
+        );
+      }
+
+      if (configResult.status === "fulfilled") {
+        next.configStatusItems = configResult.value.configs;
+      } else {
+        setConfigStatusError(
+          configResult.reason instanceof Error
+            ? configResult.reason.message
+            : "Failed to load config status",
+        );
+      }
+
+      if (sourceHealthResult.status === "fulfilled") {
+        next.sourceHealth = sourceHealthResult.value;
+      } else {
+        setSourceHealthError(
+          sourceHealthResult.reason instanceof Error
+            ? sourceHealthResult.reason.message
+            : "Failed to load source health",
+        );
+      }
+
+      if (gdeltResult.status === "fulfilled") {
+        next.gdelt = gdeltResult.value;
+      } else {
+        setGdeltError(
+          gdeltResult.reason instanceof Error
+            ? gdeltResult.reason.message
+            : "Failed to load incident feed",
+        );
+      }
+
+      return next;
+    });
+
+    setLoading(false);
+    setRefreshing(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
 
-    getLocalConfigStatus()
-      .then((status) => {
-        if (cancelled) return;
+    async function run() {
+      if (cancelled) return;
+      await loadHomeData("initial");
+    }
 
-        setConfigStatusItems(status.configs);
-        setConfigStatusError(null);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-
-        setConfigStatusError(
-          error instanceof Error ? error.message : "Failed to load config status",
-        );
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setConfigStatusLoading(false);
-      });
+    run();
 
     return () => {
       cancelled = true;
@@ -249,11 +360,11 @@ export function HomePage() {
   }, []);
 
   const configSummary = useMemo(() => {
-    const validCount = configStatusItems.filter((item) => item.valid).length;
-    const invalidCount = configStatusItems.filter(
+    const validCount = state.configStatusItems.filter((item) => item.valid).length;
+    const invalidCount = state.configStatusItems.filter(
       (item) => item.status === "invalid",
     ).length;
-    const missingCount = configStatusItems.filter(
+    const missingCount = state.configStatusItems.filter(
       (item) => item.status === "missing",
     ).length;
 
@@ -261,9 +372,135 @@ export function HomePage() {
       validCount,
       invalidCount,
       missingCount,
-      totalCount: configStatusItems.length,
+      totalCount: state.configStatusItems.length,
     };
-  }, [configStatusItems]);
+  }, [state.configStatusItems]);
+
+  const events = state.gdelt?.events ?? [];
+  const derivedSignals = state.gdelt?.derivedSignals ?? [];
+  const sourceSummary = state.sourceHealth?.summary;
+
+  const priorityWatch = useMemo(() => {
+    return [...events]
+      .sort((a, b) => getEventPriorityScore(b) - getEventPriorityScore(a))
+      .slice(0, 5);
+  }, [events]);
+
+  const feedPreview = useMemo(() => {
+    return [...events]
+      .sort((a, b) => {
+        const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+
+        return bTime - aTime;
+      })
+      .slice(0, 5);
+  }, [events]);
+
+  const signalCounts = useMemo(() => {
+    const counts = {
+      New: 0,
+      Watching: 0,
+      Escalating: 0,
+      Cooling: 0,
+    };
+
+    for (const signal of derivedSignals) {
+      counts[getSignalState(signal)] += 1;
+    }
+
+    return counts;
+  }, [derivedSignals]);
+
+  const highWatchEvents = events.filter(
+    (event) =>
+      event.severityLevel === "high" ||
+      event.severityLevel === "critical" ||
+      (event.severityScore ?? 0) >= 70,
+  ).length;
+
+  const overviewMetrics = [
+    {
+      label: "Active Events",
+      value: String(events.length),
+      note: state.gdelt?.source ?? "RSS mapper",
+      icon: Activity,
+    },
+    {
+      label: "High Watch Events",
+      value: String(highWatchEvents),
+      note: "High/critical or score ≥ 70",
+      icon: ShieldAlert,
+    },
+    {
+      label: "Active Signals",
+      value: String(derivedSignals.length),
+      note: "Derived reporting clusters",
+      icon: Radar,
+    },
+    {
+      label: "Sources Online",
+      value: String(sourceSummary?.online ?? 0),
+      note: `${sourceSummary?.total ?? 0} configured sources`,
+      icon: Wifi,
+    },
+    {
+      label: "Sources Warning",
+      value: String(sourceSummary?.warning ?? 0),
+      note: "Disabled, slow, or degraded",
+      icon: AlertTriangle,
+    },
+    {
+      label: "Sources Offline",
+      value: String(sourceSummary?.offline ?? 0),
+      note: "Failed source checks",
+      icon: WifiOff,
+    },
+    {
+      label: "Last Refresh",
+      value: formatRelativeTime(state.gdelt?.timestamp ?? state.sourceHealth?.checkedAt),
+      note: formatDateTime(state.gdelt?.timestamp ?? state.sourceHealth?.checkedAt),
+      icon: Clock3,
+    },
+    {
+      label: "Config Health",
+      value: `${configSummary.validCount}/${configSummary.totalCount}`,
+      note:
+        configSummary.invalidCount || configSummary.missingCount
+          ? "Config needs attention"
+          : "All config valid",
+      icon: FileJson,
+    },
+  ];
+
+  const sourceHealthCards = [
+    {
+      label: "Online",
+      value: String(sourceSummary?.online ?? 0),
+      icon: Wifi,
+    },
+    {
+      label: "Warning",
+      value: String(sourceSummary?.warning ?? 0),
+      icon: AlertTriangle,
+    },
+    {
+      label: "Offline",
+      value: String(sourceSummary?.offline ?? 0),
+      icon: WifiOff,
+    },
+    {
+      label: "Last Pull",
+      value: formatRelativeTime(state.sourceHealth?.checkedAt),
+      icon: Clock3,
+    },
+    {
+      label: "Failed Sources",
+      value: String(sourceSummary?.failedSourceCount ?? 0),
+      icon: ShieldAlert,
+    },
+  ];
+
   return (
     <main className="min-h-[calc(100dvh-var(--app-navbar-height))] bg-[var(--bg-void)] text-[var(--text-primary)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -291,18 +528,50 @@ export function HomePage() {
                 Fast local command surface for checking source health, active
                 events, signals, freshness, and where to investigate next.
               </p>
+
+              <button
+                type="button"
+                onClick={() => loadHomeData("refresh")}
+                disabled={loading || refreshing}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[rgba(212,175,55,0.35)] bg-[rgba(212,175,55,0.12)] px-4 py-2 text-sm font-semibold text-[var(--gold-primary)] transition hover:bg-[rgba(212,175,55,0.18)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh Home Data
+              </button>
             </div>
 
-            <div className="grid min-w-full gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 font-mono text-xs text-[var(--text-secondary)] sm:grid-cols-2 lg:min-w-[360px]">
-              <StatusLine label="Workspace" value="OSIRIS Local" />
-              <StatusLine label="Operator" value="Tyler" />
-              <StatusLine label="Last Refresh" value="Pending" />
+            <div className="grid min-w-full gap-3 rounded-2xl border border-white/10 bg-black/25 p-4 font-mono text-xs text-[var(--text-secondary)] sm:grid-cols-2 lg:min-w-[420px]">
+              <StatusLine
+                label="Workspace"
+                value={state.profile?.workspaceName ?? "OSIRIS Local"}
+              />
+              <StatusLine
+                label="Operator"
+                value={state.profile?.displayName ?? state.profile?.callsign ?? "Operator"}
+              />
+              <StatusLine
+                label="Last Refresh"
+                value={formatRelativeTime(state.gdelt?.timestamp ?? state.sourceHealth?.checkedAt)}
+              />
               <StatusLine label="Mode" value="Local" highlight />
             </div>
           </div>
         </section>
 
-        <section aria-labelledby="primary-navigation">
+        {profileError || sourceHealthError || gdeltError || configStatusError ? (
+          <section className="grid gap-3 md:grid-cols-2">
+            {profileError ? <ErrorNotice title="Profile Load Warning" message={profileError} /> : null}
+            {sourceHealthError ? (
+              <ErrorNotice title="Source Health Warning" message={sourceHealthError} />
+            ) : null}
+            {gdeltError ? <ErrorNotice title="Incident Feed Warning" message={gdeltError} /> : null}
+            {configStatusError ? (
+              <ErrorNotice title="Config Status Warning" message={configStatusError} />
+            ) : null}
+          </section>
+        ) : null}
+
+        {/* <section aria-labelledby="primary-navigation">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--gold-primary)]">
@@ -343,7 +612,7 @@ export function HomePage() {
               );
             })}
           </div>
-        </section>
+        </section> */}
 
         <section aria-labelledby="situation-overview">
           <div className="mb-3">
@@ -373,7 +642,7 @@ export function HomePage() {
                   </div>
 
                   <p className="font-mono text-2xl font-bold text-[var(--text-heading)]">
-                    {metric.value}
+                    {loading ? "…" : metric.value}
                   </p>
 
                   <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
@@ -389,36 +658,77 @@ export function HomePage() {
           <Panel
             eyebrow="Priority Watch"
             title="Needs attention"
-            description="Top items will be ranked by severity, confidence, source count, recency, and signal involvement."
+            description="Top items ranked by severity, confidence, source count, recency, and signal involvement."
           >
-            <div className="space-y-3">
-              {priorityWatch.map((item) => (
-                <InfoCard key={item.title} {...item} />
-              ))}
-            </div>
+            {priorityWatch.length ? (
+              <div className="space-y-3">
+                {priorityWatch.map((event) => (
+                  <EventCard key={event.id} event={event} mode="priority" />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No priority watch items"
+                description="No events currently meet the priority watch display criteria."
+              />
+            )}
           </Panel>
 
           <Panel
             eyebrow="Signal Snapshot"
             title="Pattern state"
-            description="Derived local signals will appear here once the signal engine exists."
+            description="Derived local signals generated from reporting clusters."
           >
             <div className="grid grid-cols-2 gap-3">
-              {signalSnapshot.map((signal) => (
+              {[
+                ["New", signalCounts.New],
+                ["Watching", signalCounts.Watching],
+                ["Escalating", signalCounts.Escalating],
+                ["Cooling", signalCounts.Cooling],
+              ].map(([label, value]) => (
                 <div
-                  key={signal.label}
+                  key={label}
                   className="rounded-2xl border border-white/10 bg-black/20 p-4"
                 >
                   <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">
-                    {signal.label}
+                    {label}
                   </p>
 
                   <p className="mt-3 font-mono text-2xl font-bold text-[var(--cyan-primary)]">
-                    {signal.value}
+                    {loading ? "…" : value}
                   </p>
                 </div>
               ))}
             </div>
+
+            {derivedSignals.length ? (
+              <div className="mt-4 space-y-3">
+                {derivedSignals.slice(0, 3).map((signal) => (
+                  <div
+                    key={signal.id}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cyan-primary)]">
+                          {signal.location.label} · {signal.evidenceCount} evidence
+                        </p>
+
+                        <h3 className="mt-1 font-semibold text-[var(--text-heading)]">
+                          {signal.title}
+                        </h3>
+                      </div>
+
+                      <Signal className="h-4 w-4 shrink-0 text-[var(--gold-primary)]" />
+                    </div>
+
+                    <p className="text-sm leading-6 text-[var(--text-secondary)]">
+                      {signal.explanation}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </Panel>
         </section>
 
@@ -426,44 +736,29 @@ export function HomePage() {
           <Panel
             eyebrow="Feed Preview"
             title="Newest local events"
-            description="The newest five event cards will appear here after local ingestion and caching are connected."
+            description="Newest event cards from the configured RSS incident mapper."
           >
-            <div className="space-y-3">
-              {feedPreview.map((item) => (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className="block rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-[rgba(0,229,255,0.3)] hover:bg-white/[0.04]"
-                >
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cyan-primary)]">
-                        {item.meta}
-                      </p>
-
-                      <h3 className="mt-1 font-semibold text-[var(--text-heading)]">
-                        {item.title}
-                      </h3>
-                    </div>
-
-                    <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-                  </div>
-
-                  <p className="text-sm leading-6 text-[var(--text-secondary)]">
-                    {item.description}
-                  </p>
-                </Link>
-              ))}
-            </div>
+            {feedPreview.length ? (
+              <div className="space-y-3">
+                {feedPreview.map((event) => (
+                  <EventCard key={event.id} event={event} mode="feed" />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No feed items yet"
+                description="The mapper did not return matched events for the current source/keyword/location config."
+              />
+            )}
           </Panel>
 
           <Panel
             eyebrow="Source Health"
             title="Feed status"
-            description="Source health will show online, warning, offline, last pull, and failed source counts."
+            description="Online, warning, offline, last pull, and failed source counts."
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              {sourceHealth.map((source) => {
+              {sourceHealthCards.map((source) => {
                 const Icon = source.icon;
 
                 return (
@@ -480,12 +775,41 @@ export function HomePage() {
                     </div>
 
                     <p className="mt-3 font-mono text-xl font-bold text-[var(--text-heading)]">
-                      {source.value}
+                      {loading ? "…" : source.value}
                     </p>
                   </div>
                 );
               })}
             </div>
+
+            {state.sourceHealth?.sources?.length ? (
+              <div className="mt-4 space-y-2">
+                {state.sourceHealth.sources.slice(0, 6).map((source) => (
+                  <div
+                    key={source.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--text-heading)]">
+                        {source.name}
+                      </p>
+                      <p className="font-mono text-[10px] text-[var(--text-muted)]">
+                        {source.httpStatus ?? "—"} · {source.responseTimeMs ?? "—"}ms
+                      </p>
+                    </div>
+
+                    <p
+                      className={[
+                        "font-mono text-[10px] uppercase tracking-[0.18em]",
+                        getSourceStatusClassName(source.status),
+                      ].join(" ")}
+                    >
+                      {source.status}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </Panel>
         </section>
 
@@ -495,56 +819,18 @@ export function HomePage() {
             title="Configuration health"
             description="Live validation status for local JSON files in osiris-data."
           >
-            {configStatusLoading ? (
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-[var(--text-secondary)]">
-                Checking local config files...
-              </div>
-            ) : configStatusError ? (
-              <div className="rounded-2xl border border-[rgba(255,80,80,0.35)] bg-[rgba(255,80,80,0.08)] p-4">
-                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--alert-red)]">
-                  Config Status Error
-                </p>
-
-                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                  {configStatusError}
-                </p>
-              </div>
+            {configStatusError ? (
+              <ErrorNotice title="Config Status Error" message={configStatusError} />
             ) : (
               <div className="space-y-5">
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                      Valid
-                    </p>
-
-                    <p className="mt-2 font-mono text-3xl font-bold text-[var(--alert-green)]">
-                      {configSummary.validCount}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                      Invalid
-                    </p>
-
-                    <p className="mt-2 font-mono text-3xl font-bold text-[var(--alert-red)]">
-                      {configSummary.invalidCount}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                      Missing
-                    </p>
-
-                    <p className="mt-2 font-mono text-3xl font-bold text-[var(--gold-primary)]">
-                      {configSummary.missingCount}
-                    </p>
-                  </div>
+                  <SummaryCard label="Valid" value={configSummary.validCount} tone="green" />
+                  <SummaryCard label="Invalid" value={configSummary.invalidCount} tone="red" />
+                  <SummaryCard label="Missing" value={configSummary.missingCount} tone="gold" />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                  {configStatusItems.map((config) => (
+                  {state.configStatusItems.map((config) => (
                     <div
                       key={config.name}
                       className="min-w-0 rounded-2xl border border-white/10 bg-black/20 p-4"
@@ -586,39 +872,15 @@ export function HomePage() {
                 </div>
 
                 {configSummary.invalidCount > 0 || configSummary.missingCount > 0 ? (
-                  <div className="rounded-2xl border border-[rgba(212,175,55,0.22)] bg-[rgba(212,175,55,0.06)] p-4">
-                    <div className="flex gap-3">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-primary)]" />
-
-                      <div>
-                        <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold-primary)]">
-                          Config Warning
-                        </p>
-
-                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                          One or more local config files need attention. Open Settings
-                          later to repair them, or edit the affected JSON file directly
-                          while the settings UI is still being built.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <WarningNotice
+                    title="Config Warning"
+                    message="One or more local config files need attention. Open Settings to repair the affected JSON file."
+                  />
                 ) : (
-                  <div className="rounded-2xl border border-[rgba(0,255,170,0.18)] bg-[rgba(0,255,170,0.05)] p-4">
-                    <div className="flex gap-3">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--alert-green)]" />
-
-                      <div>
-                        <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--alert-green)]">
-                          Config Healthy
-                        </p>
-
-                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                          All local config files exist and passed validation.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <SuccessNotice
+                    title="Config Healthy"
+                    message="All local config files exist and passed validation."
+                  />
                 )}
               </div>
             )}
@@ -656,7 +918,7 @@ interface PanelProps {
   eyebrow: string;
   title: string;
   description: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 function Panel({ eyebrow, title, description, children }: PanelProps) {
@@ -681,26 +943,166 @@ function Panel({ eyebrow, title, description, children }: PanelProps) {
   );
 }
 
-interface InfoCardProps {
-  title: string;
-  meta: string;
-  description: string;
-}
+function EventCard({ event, mode }: { event: GdeltEvent; mode: "priority" | "feed" }) {
+  const href = event.url || "/feed";
 
-function InfoCard({ title, meta, description }: InfoCardProps) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <Signal className="h-4 w-4 text-[var(--gold-primary)]" />
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-          {meta}
-        </p>
+    <a
+      href={href}
+      target={event.url ? "_blank" : undefined}
+      rel={event.url ? "noopener noreferrer" : undefined}
+      className="block rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-[rgba(0,229,255,0.3)] hover:bg-white/[0.04]"
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cyan-primary)]">
+            {event.source || "RSS"} · {formatRelativeTime(event.publishedAt)}
+          </p>
+
+          <h3 className="mt-1 font-semibold text-[var(--text-heading)]">
+            {event.title}
+          </h3>
+        </div>
+
+        {event.url ? (
+          <ExternalLink className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+        ) : (
+          <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+        )}
       </div>
 
-      <h3 className="font-semibold text-[var(--text-heading)]">{title}</h3>
+      <p className="text-sm leading-6 text-[var(--text-secondary)]">
+        {mode === "priority"
+          ? event.whyFlagged || event.description || "Matched monitored source/keyword/location criteria."
+          : event.description || event.whyFlagged || "Matched monitored criteria."}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {event.severityLevel ? (
+          <span
+            className={[
+              "rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em]",
+              getSeverityClassName(event.severityLevel),
+            ].join(" ")}
+          >
+            {event.severityLevel}
+          </span>
+        ) : null}
+
+        {event.confidenceLevel ? (
+          <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            {event.confidenceLevel} confidence
+          </span>
+        ) : null}
+
+        {event.matchedLocation?.label ? (
+          <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--gold-primary)]">
+            {event.matchedLocation.label}
+          </span>
+        ) : null}
+      </div>
+    </a>
+  );
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">
+        {title}
+      </p>
 
       <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
         {description}
+      </p>
+    </div>
+  );
+}
+
+function ErrorNotice({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="rounded-2xl border border-[rgba(255,80,80,0.35)] bg-[rgba(255,80,80,0.08)] p-4">
+      <div className="flex gap-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--alert-red)]" />
+
+        <div>
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--alert-red)]">
+            {title}
+          </p>
+
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            {message}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WarningNotice({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="rounded-2xl border border-[rgba(212,175,55,0.22)] bg-[rgba(212,175,55,0.06)] p-4">
+      <div className="flex gap-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gold-primary)]" />
+
+        <div>
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--gold-primary)]">
+            {title}
+          </p>
+
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            {message}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuccessNotice({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="rounded-2xl border border-[rgba(0,255,170,0.18)] bg-[rgba(0,255,170,0.05)] p-4">
+      <div className="flex gap-3">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--alert-green)]" />
+
+        <div>
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--alert-green)]">
+            {title}
+          </p>
+
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            {message}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "green" | "red" | "gold";
+}) {
+  const colorClass =
+    tone === "green"
+      ? "text-[var(--alert-green)]"
+      : tone === "red"
+        ? "text-[var(--alert-red)]"
+        : "text-[var(--gold-primary)]";
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+        {label}
+      </p>
+
+      <p className={`mt-2 font-mono text-3xl font-bold ${colorClass}`}>
+        {value}
       </p>
     </div>
   );

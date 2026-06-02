@@ -11,6 +11,7 @@ import {
   Radio,
   Settings,
   Tags,
+  TerminalSquare,
   User,
 } from "lucide-react";
 
@@ -63,6 +64,13 @@ const settingsSections = [
     href: "/settings/import-export",
     icon: Download,
     configFile: "osiris-data/",
+  },
+  {
+    title: "Developer",
+    description: "Inspect local config health, API routes, diagnostics, and development utilities.",
+    href: "/settings/developer",
+    icon: TerminalSquare,
+    configFile: "diagnostics",
   },
 ];
 

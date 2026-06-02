@@ -105,3 +105,44 @@ export async function importLocalConfigBundle(
 
   return payload as LocalConfigImportResponse;
 }
+
+export interface SourceHealthItem {
+  id: string;
+  name: string;
+  url: string;
+  category: string;
+  enabled: boolean;
+  status: "online" | "warning" | "offline";
+  httpStatus: number | null;
+  responseTimeMs: number | null;
+  checkedAt: string;
+  error: string | null;
+}
+
+export interface SourceHealthResponse {
+  ok: boolean;
+  checkedAt: string;
+  summary: {
+    total: number;
+    online: number;
+    warning: number;
+    offline: number;
+    failedSourceCount: number;
+  };
+  sources: SourceHealthItem[];
+  error?: string;
+}
+
+export async function getSourceHealth(): Promise<SourceHealthResponse> {
+  const response = await fetch("/api/source-health", {
+    cache: "no-store",
+  });
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Failed to load source health");
+  }
+
+  return payload as SourceHealthResponse;
+}
