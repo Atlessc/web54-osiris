@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
 
-import { SettingsPlaceholderPage } from "@/features/settings/components/SettingsPlaceholderPage";
+import { ImportExportSettingsPage } from "@/features/settings/import-export/ImprtExportSettingsPage";
 
 export const metadata: Metadata = {
   title: "Import / Export | OSIRIS Intelligence",
 };
 
 export default function Page() {
-  return (
-    <SettingsPlaceholderPage
-      title="Import / Export"
-      description="Export, restore, or migrate your local OSIRIS configuration profile."
-      configFile="osiris-data/"
-    />
-  );
+  return <ImportExportSettingsPage />;
 }

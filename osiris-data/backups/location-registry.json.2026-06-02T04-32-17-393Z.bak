@@ -27,8 +27,8 @@
       "Oregon"
     ],
     "coordinates": {
-      "lat": 0,
-      "lng": 0
+      "lat": 45.5152,
+      "lng": 122.6784
     },
     "watchPriority": "high",
     "tags": []

@@ -5,7 +5,7 @@
     "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
     "type": "rss",
     "category": "world-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.85,
     "refreshIntervalMinutes": 15,
     "tags": [
@@ -21,7 +21,7 @@
     "url": "https://www.aljazeera.com/xml/rss/all.xml",
     "type": "rss",
     "category": "world-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.8,
     "refreshIntervalMinutes": 15,
     "tags": [
