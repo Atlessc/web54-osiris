@@ -2,22 +2,6 @@
   "name": "osiris",
   "version": "0.1.0",
   "private": true,
-  "style": "new-york",
-  "rsc": true,
-  "tailwind": {
-    "config": "",
-    "css": "src/app/globals.css",
-    "baseColor": "neutral",
-    "cssVariables": true,
-    "prefix": ""
-  },
-  "aliases": {
-    "components": "@/components",
-    "utils": "@/lib/utils",
-    "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
-  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
