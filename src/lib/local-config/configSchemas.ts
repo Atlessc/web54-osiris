@@ -25,17 +25,40 @@ export const settingsSchema = z.object({
   enabledLayers: z.array(z.string().min(1)),
 });
 
-export const rssFeedSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  url: z.string().url(),
-  type: z.literal("rss"),
-  category: z.string().min(1),
-  enabled: z.boolean(),
-  reliabilityWeight: z.number().min(0).max(1),
-  refreshIntervalMinutes: z.number().int().min(1),
-  tags: z.array(z.string()),
-});
+export const rssFeedSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    url: z.string().url(),
+    logoUrl: z.string().url(),
+    type: z.literal("rss"),
+    category: z.string().min(1),
+    enabled: z.boolean(),
+    reliabilityWeight: z.number().min(0).max(1),
+    refreshIntervalMinutes: z.number().int().min(1),
+    spectrumScore: z.number().min(-100).max(100).nullable(),
+    spectrumConfidence: z.enum(["low", "medium", "high", "unrated"]),
+    spectrumAsOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    spectrumReferenceUrl: z.string().url().nullable(),
+    tags: z.array(z.string()),
+  })
+  .superRefine((feed, context) => {
+    if (feed.spectrumScore === null && feed.spectrumConfidence !== "unrated") {
+      context.addIssue({
+        code: "custom",
+        path: ["spectrumConfidence"],
+        message: "must be unrated when spectrumScore is null",
+      });
+    }
+
+    if (feed.spectrumScore !== null && feed.spectrumConfidence === "unrated") {
+      context.addIssue({
+        code: "custom",
+        path: ["spectrumConfidence"],
+        message: "must be low, medium, or high when spectrumScore is numeric",
+      });
+    }
+  });
 
 export const rssFeedsSchema = z.array(rssFeedSchema);
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readLocalConfig } from "@/lib/local-config/configService";
+import { getSourceBiasProfile } from "@/lib/source-bias";
 import {
   pullRssSources,
   writeSourceIngestionDiagnostics,
@@ -10,6 +11,7 @@ import type {
   RssFeedConfig,
 } from "@/types/local-config";
 import type { SourceIngestionDiagnostics } from "@/types/source-health";
+import type { SourceBiasProfile } from "@/types/source-bias";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +78,7 @@ interface OsintEvent {
   sourceCategory: string;
   sourceTags: string[];
   sourceReliability: number;
+  sourceBias: SourceBiasProfile;
   sourceRefreshIntervalMinutes: number;
   publishedAt: string | null;
   fetchedAt: string;
@@ -108,6 +111,7 @@ interface OsintEvent {
 interface DerivedSignal {
   id: string;
   title: string;
+  primaryEventId: string;
   severity: SeverityLevel;
   confidence: ConfidenceLevel;
   location: {
@@ -134,36 +138,67 @@ interface DerivedSignal {
 
 const FALLBACK_RSS_FEEDS: RssFeedConfig[] = [
   {
+    id: "reuters-google-news",
+    name: "Reuters via Google News",
+    url: "https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen",
+    logoUrl: "https://www.google.com/s2/favicons?domain=reuters.com&sz=64",
+    type: "rss",
+    category: "world-news",
+    enabled: true,
+    reliabilityWeight: 0.92,
+    refreshIntervalMinutes: 15,
+    spectrumScore: -13,
+    spectrumConfidence: "high",
+    spectrumAsOf: "2026-06-07",
+    spectrumReferenceUrl: "https://www.allsides.com/news-source/reuters-media-bias",
+    tags: ["world", "general", "wire-service", "reuters", "google-news-workaround"],
+  },
+  {
     id: "fallback-bbc-world",
     name: "BBC World",
     url: "https://feeds.bbci.co.uk/news/world/rss.xml",
+    logoUrl: "https://www.google.com/s2/favicons?domain=bbc.com&sz=64",
     type: "rss",
     category: "world-news",
     enabled: true,
     reliabilityWeight: 0.9,
     refreshIntervalMinutes: 15,
+    spectrumScore: -13,
+    spectrumConfidence: "medium",
+    spectrumAsOf: "2026-06-07",
+    spectrumReferenceUrl: "https://www.allsides.com/news-source/bbc-news-bias",
     tags: ["world", "fallback"],
   },
   {
     id: "fallback-al-jazeera",
     name: "Al Jazeera",
     url: "https://www.aljazeera.com/xml/rss/all.xml",
+    logoUrl: "https://www.google.com/s2/favicons?domain=aljazeera.com&sz=64",
     type: "rss",
     category: "world-news",
     enabled: true,
     reliabilityWeight: 0.85,
     refreshIntervalMinutes: 15,
+    spectrumScore: -38,
+    spectrumConfidence: "low",
+    spectrumAsOf: "2026-06-07",
+    spectrumReferenceUrl: "https://www.allsides.com/news-source/al-jazeera-media-bias",
     tags: ["world", "fallback"],
   },
   {
     id: "fallback-nyt-world",
     name: "NYT World",
     url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    logoUrl: "https://www.google.com/s2/favicons?domain=nytimes.com&sz=64",
     type: "rss",
     category: "world-news",
     enabled: true,
     reliabilityWeight: 0.88,
     refreshIntervalMinutes: 15,
+    spectrumScore: -37,
+    spectrumConfidence: "high",
+    spectrumAsOf: "2026-06-07",
+    spectrumReferenceUrl: "https://www.allsides.com/news-source/new-york-times",
     tags: ["world", "fallback"],
   },
 ];
@@ -615,6 +650,7 @@ async function getConfiguredGeoDict(): Promise<Record<string, GeoEntry>> {
 function decodeXmlEntities(value: string): string {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
+    .replace(/&nbsp;|&#160;/gi, " ")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
@@ -1076,6 +1112,27 @@ function getClusterConfidenceLevel(events: OsintEvent[]): ConfidenceLevel {
   return getConfidenceLevel(Math.min(100, avgConfidence + corroborationBoost));
 }
 
+function getPrimarySignalEvent(events: OsintEvent[]) {
+  return [...events].sort((a, b) => {
+    const aRated = typeof a.sourceBias.score === "number";
+    const bRated = typeof b.sourceBias.score === "number";
+
+    if (aRated !== bRated) return aRated ? -1 : 1;
+
+    if (aRated && bRated) {
+      const centerDifference =
+        Math.abs(a.sourceBias.score as number) -
+        Math.abs(b.sourceBias.score as number);
+      if (centerDifference !== 0) return centerDifference;
+    }
+
+    const reliabilityDifference = b.sourceReliability - a.sourceReliability;
+    if (reliabilityDifference !== 0) return reliabilityDifference;
+
+    return (b.publishedAt || "").localeCompare(a.publishedAt || "");
+  })[0];
+}
+
 function buildDerivedSignals(
   events: OsintEvent[],
   fetchedAt: string,
@@ -1103,6 +1160,7 @@ function buildDerivedSignals(
     if (!shouldKeepCluster) continue;
 
     const first = clusterEvents[0];
+    const primaryEvent = getPrimarySignalEvent(clusterEvents);
     const sources = Array.from(
       new Set(clusterEvents.map((event) => event.source)),
     );
@@ -1134,15 +1192,18 @@ function buildDerivedSignals(
       sources.length > 1
         ? `${sources.length} sources (${sources.join(", ")})`
         : `${sources[0]}`;
+    const headlineSelectionReason =
+      typeof primaryEvent.sourceBias.score === "number"
+        ? "The closest-to-center rated supporting headline"
+        : "No supporting source has a current spectrum rating, so the highest-reliability supporting headline";
 
     derivedSignals.push({
       id: `signal-${clusterKey.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${fetchedAt.slice(
         0,
         13,
       )}`,
-      title: `${severity.toUpperCase()} watch: ${first.matchedLocation.label} ${keywordFamilies.join(
-        "/",
-      )} reporting cluster`,
+      title: primaryEvent.title,
+      primaryEventId: primaryEvent.id,
       severity,
       confidence,
       location: {
@@ -1159,9 +1220,7 @@ function buildDerivedSignals(
       averageSeverityScore,
       averageConfidenceScore,
       newestPublishedAt,
-      explanation: `${clusterEvents.length} RSS items from ${sourcePhrase} matched ${matchedKeywords.join(
-        ", ",
-      )} around ${first.matchedLocation.label}. This suggests elevated reporting density, not confirmed causation.`,
+      explanation: `${clusterEvents.length} articles from ${sourcePhrase} converged around ${first.matchedLocation.label} in the current collection window. ${headlineSelectionReason} is from ${primaryEvent.source}: "${primaryEvent.title}".${primaryEvent.description ? ` Feed excerpt: ${primaryEvent.description.slice(0, 320)}` : ""} Keyword overlap created this watch condition, but does not by itself confirm that every article describes one event.`,
       knownFacts: [
         `${clusterEvents.length} feed items matched the same location/family cluster.`,
         `Sources involved: ${sources.join(", ")}`,
@@ -1327,6 +1386,7 @@ export async function GET() {
         });
 
         const confidenceLevel = getConfidenceLevel(confidenceScore);
+        const sourceBias = getSourceBiasProfile(feed);
         const displayCoords = getDisplayCoords(
           matchedLocation.coords,
           eventId,
@@ -1384,6 +1444,7 @@ export async function GET() {
           sourceCategory: feed.category,
           sourceTags: feed.tags,
           sourceReliability: feed.reliabilityWeight,
+          sourceBias,
           sourceRefreshIntervalMinutes: feed.refreshIntervalMinutes,
           publishedAt,
           fetchedAt,

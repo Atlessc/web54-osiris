@@ -28,11 +28,16 @@ const EMPTY_FEED: RssFeedConfig = {
   id: "",
   name: "",
   url: "",
+  logoUrl: "https://www.google.com/s2/favicons?domain=example.com&sz=64",
   type: "rss",
   category: "world-news",
   enabled: true,
   reliabilityWeight: 0.75,
   refreshIntervalMinutes: 15,
+  spectrumScore: null,
+  spectrumConfidence: "unrated",
+  spectrumAsOf: new Date().toISOString().slice(0, 10),
+  spectrumReferenceUrl: null,
   tags: [],
 };
 
@@ -128,6 +133,10 @@ export function SourcesSettingsPage() {
         errors.push(`${label}: URL must be a valid http/https URL.`);
       }
 
+      if (!isValidUrl(feed.logoUrl)) {
+        errors.push(`${label}: logo URL must be a valid http/https URL.`);
+      }
+
       if (!feed.category.trim()) {
         errors.push(`${label}: category is required.`);
       }
@@ -142,6 +151,34 @@ export function SourcesSettingsPage() {
 
       if (!Number.isInteger(feed.refreshIntervalMinutes) || feed.refreshIntervalMinutes < 1) {
         errors.push(`${label}: refresh interval must be at least 1 minute.`);
+      }
+
+      if (
+        feed.spectrumScore !== null &&
+        (!Number.isFinite(feed.spectrumScore) ||
+          feed.spectrumScore < -100 ||
+          feed.spectrumScore > 100)
+      ) {
+        errors.push(`${label}: spectrum score must be null or between -100 and 100.`);
+      }
+
+      if (
+        feed.spectrumReferenceUrl !== null &&
+        !isValidUrl(feed.spectrumReferenceUrl)
+      ) {
+        errors.push(`${label}: spectrum reference URL must be a valid http/https URL.`);
+      }
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(feed.spectrumAsOf)) {
+        errors.push(`${label}: spectrum as-of date must use YYYY-MM-DD.`);
+      }
+
+      if (feed.spectrumScore === null && feed.spectrumConfidence !== "unrated") {
+        errors.push(`${label}: null spectrum scores must use unrated confidence.`);
+      }
+
+      if (feed.spectrumScore !== null && feed.spectrumConfidence === "unrated") {
+        errors.push(`${label}: numeric spectrum scores need low, medium, or high confidence.`);
       }
 
       const normalizedId = feed.id.trim();
@@ -273,11 +310,17 @@ export function SourcesSettingsPage() {
       id: feed.id.trim(),
       name: feed.name.trim(),
       url: feed.url.trim(),
+      logoUrl: feed.logoUrl.trim(),
       type: "rss",
       category: feed.category.trim(),
       enabled: feed.enabled,
       reliabilityWeight: Number(feed.reliabilityWeight),
       refreshIntervalMinutes: Number(feed.refreshIntervalMinutes),
+      spectrumScore:
+        feed.spectrumScore === null ? null : Number(feed.spectrumScore),
+      spectrumConfidence: feed.spectrumConfidence,
+      spectrumAsOf: feed.spectrumAsOf,
+      spectrumReferenceUrl: feed.spectrumReferenceUrl?.trim() || null,
       tags: feed.tags.map((tag) => tag.trim()).filter(Boolean),
     }));
 
@@ -562,6 +605,19 @@ export function SourcesSettingsPage() {
                         />
                       </label>
 
+                      <label className="block lg:col-span-2">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                          Source Logo URL
+                        </span>
+
+                        <input
+                          value={feed.logoUrl}
+                          onChange={(event) => updateFeed(index, "logoUrl", event.target.value)}
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-[var(--text-heading)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(212,175,55,0.45)]"
+                          placeholder="https://example.com/logo.png"
+                        />
+                      </label>
+
                       <label className="block">
                         <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
                           Category
@@ -615,6 +671,92 @@ export function SourcesSettingsPage() {
                             updateFeed(index, "reliabilityWeight", Number(event.target.value))
                           }
                           className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-[var(--text-heading)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(212,175,55,0.45)]"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                          Spectrum Score
+                        </span>
+
+                        <input
+                          type="number"
+                          min={-100}
+                          max={100}
+                          value={feed.spectrumScore ?? ""}
+                          onChange={(event) => {
+                            const score =
+                              event.target.value === ""
+                                ? null
+                                : Number(event.target.value);
+                            updateFeed(index, "spectrumScore", score);
+
+                            if (score === null) {
+                              updateFeed(index, "spectrumConfidence", "unrated");
+                            } else if (feed.spectrumConfidence === "unrated") {
+                              updateFeed(index, "spectrumConfidence", "low");
+                            }
+                          }}
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-[var(--text-heading)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(212,175,55,0.45)]"
+                          placeholder="Blank means unrated"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                          Spectrum Confidence
+                        </span>
+
+                        <select
+                          value={feed.spectrumConfidence}
+                          onChange={(event) =>
+                            updateFeed(
+                              index,
+                              "spectrumConfidence",
+                              event.target.value as RssFeedConfig["spectrumConfidence"],
+                            )
+                          }
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-[var(--text-heading)] outline-none transition focus:border-[rgba(212,175,55,0.45)]"
+                        >
+                          {["unrated", "low", "medium", "high"].map((confidence) => (
+                            <option key={confidence} value={confidence}>
+                              {confidence}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                          Spectrum As Of
+                        </span>
+
+                        <input
+                          type="date"
+                          value={feed.spectrumAsOf}
+                          onChange={(event) =>
+                            updateFeed(index, "spectrumAsOf", event.target.value)
+                          }
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-[var(--text-heading)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(212,175,55,0.45)]"
+                        />
+                      </label>
+
+                      <label className="block lg:col-span-2">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                          Spectrum Reference URL
+                        </span>
+
+                        <input
+                          value={feed.spectrumReferenceUrl ?? ""}
+                          onChange={(event) =>
+                            updateFeed(
+                              index,
+                              "spectrumReferenceUrl",
+                              event.target.value || null,
+                            )
+                          }
+                          className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-[var(--text-heading)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(212,175,55,0.45)]"
+                          placeholder="Optional public rating reference"
                         />
                       </label>
 

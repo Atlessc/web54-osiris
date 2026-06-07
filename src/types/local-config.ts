@@ -59,11 +59,16 @@ export interface RssFeedConfig {
   id: string;
   name: string;
   url: string;
+  logoUrl: string;
   type: SourceType;
   category: string;
   enabled: boolean;
   reliabilityWeight: number;
   refreshIntervalMinutes: number;
+  spectrumScore: number | null;
+  spectrumConfidence: "low" | "medium" | "high" | "unrated";
+  spectrumAsOf: string;
+  spectrumReferenceUrl: string | null;
   tags: string[];
 }
 

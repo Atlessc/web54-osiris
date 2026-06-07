@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -108,6 +109,22 @@ async function ensureRssCacheDir() {
   await rssCacheReadyPromise;
 }
 
+async function writeJsonAtomically(filePath: string, value: unknown) {
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+
+  try {
+    await fs.writeFile(
+      temporaryPath,
+      `${JSON.stringify(value, null, 2)}\n`,
+      "utf-8",
+    );
+    await fs.rename(temporaryPath, filePath);
+  } catch (error) {
+    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
 async function readSourceCache(
   feed: RssFeedConfig,
 ): Promise<SourcePullCacheEntry | null> {
@@ -134,6 +151,14 @@ async function readSourceCache(
       error.code === "ENOENT";
 
     if (isMissing) return null;
+
+    if (error instanceof SyntaxError) {
+      console.warn(
+        `[OSIRIS] Ignoring malformed RSS cache for ${feed.id}; it will be refreshed: ${error.message}`,
+      );
+      return null;
+    }
+
     throw error;
   }
 }
@@ -144,11 +169,7 @@ async function writeSourceCache(
 ) {
   await ensureRssCacheDir();
 
-  await fs.writeFile(
-    getCachePath(feed.id),
-    `${JSON.stringify(entry, null, 2)}\n`,
-    "utf-8",
-  );
+  await writeJsonAtomically(getCachePath(feed.id), entry);
 }
 
 function resultFromCache(
@@ -354,11 +375,7 @@ export async function writeSourceIngestionDiagnostics(
     sources,
   };
 
-  await fs.writeFile(
-    DIAGNOSTICS_PATH,
-    `${JSON.stringify(payload, null, 2)}\n`,
-    "utf-8",
-  );
+  await writeJsonAtomically(DIAGNOSTICS_PATH, payload);
 }
 
 export async function readSourceIngestionDiagnostics() {
@@ -381,6 +398,14 @@ export async function readSourceIngestionDiagnostics() {
       error.code === "ENOENT";
 
     if (isMissing) return [];
+
+    if (error instanceof SyntaxError) {
+      console.warn(
+        `[OSIRIS] Ignoring malformed RSS ingestion diagnostics; they will be refreshed: ${error.message}`,
+      );
+      return [];
+    }
+
     throw error;
   }
 }

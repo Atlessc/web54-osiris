@@ -1,112 +1,237 @@
 [
   {
+    "id": "reuters-google-news",
+    "name": "Reuters via Google News",
+    "url": "https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=reuters.com&sz=64",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.92,
+    "refreshIntervalMinutes": 15,
+    "spectrumScore": -13,
+    "spectrumConfidence": "high",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/reuters-media-bias",
+    "tags": [
+      "world",
+      "general",
+      "wire-service",
+      "reuters",
+      "google-news-workaround"
+    ]
+  },
+  {
     "id": "bbc-world",
     "name": "BBC World",
     "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=bbc.com&sz=64",
     "type": "rss",
     "category": "world-news",
     "enabled": true,
     "reliabilityWeight": 0.85,
     "refreshIntervalMinutes": 15,
-    "tags": ["world", "general", "breaking", "international"]
+    "spectrumScore": -13,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/bbc-news-bias",
+    "tags": [
+      "world",
+      "general",
+      "breaking",
+      "international"
+    ]
   },
   {
     "id": "aljazeera-world",
     "name": "Al Jazeera World",
     "url": "https://www.aljazeera.com/xml/rss/all.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=aljazeera.com&sz=64",
     "type": "rss",
     "category": "world-news",
     "enabled": true,
     "reliabilityWeight": 0.8,
     "refreshIntervalMinutes": 15,
-    "tags": ["world", "middle-east", "general", "conflict"]
+    "spectrumScore": -38,
+    "spectrumConfidence": "low",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/al-jazeera-media-bias",
+    "tags": [
+      "world",
+      "middle-east",
+      "general",
+      "conflict"
+    ]
   },
   {
     "id": "nyt-world",
     "name": "NYT World",
     "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=nytimes.com&sz=64",
     "type": "rss",
     "category": "world-news",
     "enabled": true,
     "reliabilityWeight": 0.8,
     "refreshIntervalMinutes": 15,
-    "tags": ["world", "general", "new-york-times"]
+    "spectrumScore": -37,
+    "spectrumConfidence": "high",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/new-york-times",
+    "tags": [
+      "world",
+      "general",
+      "new-york-times"
+    ]
   },
   {
     "id": "guardian-world",
     "name": "The Guardian World",
     "url": "https://www.theguardian.com/world/rss",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=theguardian.com&sz=64",
     "type": "rss",
     "category": "world-news",
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
-    "tags": ["world", "general", "uk", "international"]
+    "spectrumScore": -58,
+    "spectrumConfidence": "low",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/guardian-media-bias",
+    "tags": [
+      "world",
+      "general",
+      "uk",
+      "international"
+    ]
   },
   {
     "id": "npr-news",
     "name": "NPR News",
     "url": "https://feeds.npr.org/1001/rss.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=npr.org&sz=64",
     "type": "rss",
     "category": "us-news",
     "enabled": true,
     "reliabilityWeight": 0.82,
     "refreshIntervalMinutes": 15,
-    "tags": ["usa", "national", "public-radio", "general"]
+    "spectrumScore": -31,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/npr",
+    "tags": [
+      "usa",
+      "national",
+      "public-radio",
+      "general"
+    ]
   },
   {
     "id": "cisa-alerts",
     "name": "CISA Cybersecurity Advisories",
     "url": "https://www.cisa.gov/cybersecurity-advisories/all.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=cisa.gov&sz=64",
     "type": "rss",
     "category": "cybersecurity",
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 30,
-    "tags": ["cyber", "security", "government", "infrastructure", "official"]
+    "spectrumScore": null,
+    "spectrumConfidence": "unrated",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": null,
+    "tags": [
+      "cyber",
+      "security",
+      "government",
+      "infrastructure",
+      "official"
+    ]
   },
   {
     "id": "bleepingcomputer",
     "name": "BleepingComputer",
     "url": "https://www.bleepingcomputer.com/feed/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=bleepingcomputer.com&sz=64",
     "type": "rss",
     "category": "cybersecurity",
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
-    "tags": ["cyber", "ransomware", "malware", "breach"]
+    "spectrumScore": null,
+    "spectrumConfidence": "unrated",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": null,
+    "tags": [
+      "cyber",
+      "ransomware",
+      "malware",
+      "breach"
+    ]
   },
   {
     "id": "usgs-significant-earthquakes",
     "name": "USGS Significant Earthquakes",
     "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=earthquake.usgs.gov&sz=64",
     "type": "rss",
     "category": "natural-hazards",
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 15,
-    "tags": ["earthquake", "seismic", "hazards", "usgs", "official"]
+    "spectrumScore": null,
+    "spectrumConfidence": "unrated",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": null,
+    "tags": [
+      "earthquake",
+      "seismic",
+      "hazards",
+      "usgs",
+      "official"
+    ]
   },
   {
     "id": "noaa-national-hurricane-center",
     "name": "NOAA National Hurricane Center",
     "url": "https://www.nhc.noaa.gov/index-at.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=nhc.noaa.gov&sz=64",
     "type": "rss",
     "category": "weather",
     "enabled": true,
     "reliabilityWeight": 0.95,
     "refreshIntervalMinutes": 30,
-    "tags": ["weather", "hurricane", "storm", "noaa", "official"]
+    "spectrumScore": null,
+    "spectrumConfidence": "unrated",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": null,
+    "tags": [
+      "weather",
+      "hurricane",
+      "storm",
+      "noaa",
+      "official"
+    ]
   },
   {
     "id": "opb-news",
     "name": "OPB News",
     "url": "https://www.opb.org/news/rss/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=opb.org&sz=64",
     "type": "rss",
     "category": "portland-local",
     "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
-    "tags": ["oregon", "portland", "pnw", "local", "public-media"]
+    "spectrumScore": null,
+    "spectrumConfidence": "unrated",
+    "spectrumAsOf": "2026-06-07",
+    "spectrumReferenceUrl": null,
+    "tags": [
+      "oregon",
+      "portland",
+      "pnw",
+      "local",
+      "public-media"
+    ]
   }
 ]
