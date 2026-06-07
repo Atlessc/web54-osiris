@@ -649,7 +649,9 @@ function extractLink(item: string): string | null {
     return tagLink.trim();
   }
 
-  const atomLinkMatch = item.match(/<link\b[^>]*href=["']([^"']+)["'][^>]*\/?>/i);
+  const atomLinkMatch = item.match(
+    /<link\b[^>]*href=["']([^"']+)["'][^>]*\/?>/i,
+  );
 
   if (atomLinkMatch?.[1]) {
     return decodeXmlEntities(atomLinkMatch[1]).trim();
@@ -682,7 +684,10 @@ function getArticleAgeMinutes(
   const published = new Date(publishedAt);
   if (Number.isNaN(published.getTime())) return null;
 
-  return Math.max(0, Math.round((now.getTime() - published.getTime()) / 60_000));
+  return Math.max(
+    0,
+    Math.round((now.getTime() - published.getTime()) / 60_000),
+  );
 }
 
 function normalizeForSearch(value: string): string {
@@ -761,7 +766,8 @@ function getMatchedLocation(
   };
 
   return candidates.sort((a, b) => {
-    const precisionDiff = precisionRank[b.precision] - precisionRank[a.precision];
+    const precisionDiff =
+      precisionRank[b.precision] - precisionRank[a.precision];
     if (precisionDiff !== 0) return precisionDiff;
 
     return b.confidence - a.confidence;
@@ -1201,10 +1207,14 @@ export async function GET() {
     for (const feed of rssFeeds) {
       try {
         const res = await fetch(feed.url, {
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(10_000),
+          cache: "no-store",
+          redirect: "follow",
           headers: {
-            Accept: "application/rss+xml, application/xml, text/xml, */*",
-            "User-Agent": "OSIRIS-RSS-OSINT-Mapper/1.0",
+            "User-Agent":
+              "OSIRIS-RSS-OSINT-Mapper/1.0 (+https://yourdomain.com; contact: you@example.com)",
+            Accept:
+              "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
           },
         });
 
@@ -1238,7 +1248,10 @@ export async function GET() {
 
           const textToSearch = normalizeForSearch(`${title} ${description}`);
 
-          const matchedKeywords = getMatchedKeywords(textToSearch, keywordWeights);
+          const matchedKeywords = getMatchedKeywords(
+            textToSearch,
+            keywordWeights,
+          );
           if (!matchedKeywords.length) continue;
 
           const matchedLocation = getMatchedLocation(textToSearch, geoDict);
