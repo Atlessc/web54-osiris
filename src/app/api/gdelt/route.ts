@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { readLocalConfig } from "@/lib/local-config/configService";
-import type { LocationRegistryConfig } from "@/types/local-config";
+import {
+  pullRssSources,
+  writeSourceIngestionDiagnostics,
+} from "@/lib/rss-ingestion/sourcePullService";
+import type {
+  LocationRegistryConfig,
+  RssFeedConfig,
+} from "@/types/local-config";
+import type { SourceIngestionDiagnostics } from "@/types/source-health";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +29,6 @@ type GeoPrecision = "city" | "country" | "region" | "actor_proxy";
 type SeverityLevel = "low" | "watch" | "elevated" | "high" | "critical";
 
 type ConfidenceLevel = "low" | "moderate" | "high";
-
-interface RssFeed {
-  url: string;
-  source: string;
-  reliability: number;
-}
 
 interface GeoEntry {
   coords: [number, number]; // [lng, lat]
@@ -69,8 +71,12 @@ interface OsintEvent {
   url: string;
   html: string;
   type: "conflict";
+  sourceId: string;
   source: string;
+  sourceCategory: string;
+  sourceTags: string[];
   sourceReliability: number;
+  sourceRefreshIntervalMinutes: number;
   publishedAt: string | null;
   fetchedAt: string;
   articleAgeMinutes: number | null;
@@ -91,6 +97,9 @@ interface OsintEvent {
   metadata: {
     mapper: "rss_keyword_geo_mapper";
     sourceType: "rss";
+    sourceId: string;
+    sourceCategory: string;
+    sourceTags: string[];
     exactLocationVerified: false;
     fullGdeltEvent: false;
   };
@@ -123,39 +132,47 @@ interface DerivedSignal {
   relatedEventIds: string[];
 }
 
-const FALLBACK_RSS_FEEDS: RssFeed[] = [
+const FALLBACK_RSS_FEEDS: RssFeedConfig[] = [
   {
+    id: "fallback-bbc-world",
+    name: "BBC World",
     url: "https://feeds.bbci.co.uk/news/world/rss.xml",
-    source: "BBC World",
-    reliability: 0.9,
+    type: "rss",
+    category: "world-news",
+    enabled: true,
+    reliabilityWeight: 0.9,
+    refreshIntervalMinutes: 15,
+    tags: ["world", "fallback"],
   },
   {
+    id: "fallback-al-jazeera",
+    name: "Al Jazeera",
     url: "https://www.aljazeera.com/xml/rss/all.xml",
-    source: "Al Jazeera",
-    reliability: 0.85,
+    type: "rss",
+    category: "world-news",
+    enabled: true,
+    reliabilityWeight: 0.85,
+    refreshIntervalMinutes: 15,
+    tags: ["world", "fallback"],
   },
   {
+    id: "fallback-nyt-world",
+    name: "NYT World",
     url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-    source: "NYT World",
-    reliability: 0.88,
+    type: "rss",
+    category: "world-news",
+    enabled: true,
+    reliabilityWeight: 0.88,
+    refreshIntervalMinutes: 15,
+    tags: ["world", "fallback"],
   },
 ];
 
-async function getConfiguredRssFeeds(): Promise<RssFeed[]> {
+async function getConfiguredRssFeeds(): Promise<RssFeedConfig[]> {
   try {
     const feeds = await readLocalConfig("rss-feeds");
 
-    const enabledFeeds = feeds
-      .filter((feed) => feed.enabled)
-      .map((feed) => ({
-        url: feed.url,
-        source: feed.name,
-        reliability: feed.reliabilityWeight,
-      }));
-
-    if (enabledFeeds.length) {
-      return enabledFeeds;
-    }
+    return feeds.filter((feed) => feed.enabled);
   } catch (error) {
     console.warn(
       "[OSIRIS] Failed to load rss-feeds config. Falling back to built-in feeds:",
@@ -1190,6 +1207,29 @@ function extractFeedItems(xml: string): string[] {
   return [...rssItems, ...atomEntries];
 }
 
+function createSourceDiagnostics(
+  feedId: string,
+  processedAt: string,
+): SourceIngestionDiagnostics {
+  return {
+    feedId,
+    processedAt,
+    totalItems: 0,
+    acceptedItems: 0,
+    rejectedItems: 0,
+    rejectionReasons: {},
+  };
+}
+
+function recordRejection(
+  diagnostics: SourceIngestionDiagnostics,
+  reason: string,
+) {
+  diagnostics.rejectedItems += 1;
+  diagnostics.rejectionReasons[reason] =
+    (diagnostics.rejectionReasons[reason] ?? 0) + 1;
+}
+
 export async function GET() {
   const fetchedAtDate = new Date();
   const fetchedAt = fetchedAtDate.toISOString();
@@ -1202,179 +1242,181 @@ export async function GET() {
     ]);
 
     const allEvents: OsintEvent[] = [];
+    const sourceDiagnostics: SourceIngestionDiagnostics[] = [];
     let eventId = 0;
+    const pullResults = await pullRssSources(rssFeeds, { concurrency: 6 });
 
-    for (const feed of rssFeeds) {
-      try {
-        const res = await fetch(feed.url, {
-          signal: AbortSignal.timeout(10_000),
-          cache: "no-store",
-          redirect: "follow",
-          headers: {
-            "User-Agent":
-              "OSIRIS-RSS-OSINT-Mapper/1.0 (+https://yourdomain.com; contact: you@example.com)",
-            Accept:
-              "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
-          },
-        });
+    for (const pullResult of pullResults) {
+      const feed = pullResult.feed;
+      const diagnostics = createSourceDiagnostics(feed.id, fetchedAt);
+      sourceDiagnostics.push(diagnostics);
 
-        if (!res.ok) {
-          console.warn(`Failed to fetch ${feed.source}: HTTP ${res.status}`);
+      if (!pullResult.xml) {
+        diagnostics.rejectionReasons.source_pull_failed = 1;
+        continue;
+      }
+
+      const items = extractFeedItems(pullResult.xml);
+      diagnostics.totalItems = items.length;
+
+      for (const item of items) {
+        const rawTitle = extractTag(item, "title");
+        const rawLink = extractLink(item);
+        const rawDesc =
+          extractTag(item, "description") ||
+          extractTag(item, "summary") ||
+          extractTag(item, "content") ||
+          "";
+
+        if (!rawTitle || !rawLink) {
+          recordRejection(diagnostics, "missing_title_or_link");
           continue;
         }
 
-        const xml = await res.text();
-        const items = extractFeedItems(xml);
+        const title = stripHtml(rawTitle);
+        const description = stripHtml(rawDesc);
+        const url = rawLink.trim();
+        const publishedAt = parsePublishedAt(item);
+        const articleAgeMinutes = getArticleAgeMinutes(
+          publishedAt,
+          fetchedAtDate,
+        );
 
-        for (const item of items) {
-          const rawTitle = extractTag(item, "title");
-          const rawLink = extractLink(item);
-          const rawDesc =
-            extractTag(item, "description") ||
-            extractTag(item, "summary") ||
-            extractTag(item, "content") ||
-            "";
+        const textToSearch = normalizeForSearch(`${title} ${description}`);
+        const matchedKeywords = getMatchedKeywords(textToSearch, keywordWeights);
 
-          if (!rawTitle || !rawLink) continue;
-
-          const title = stripHtml(rawTitle);
-          const description = stripHtml(rawDesc);
-          const url = rawLink.trim();
-          const publishedAt = parsePublishedAt(item);
-          const articleAgeMinutes = getArticleAgeMinutes(
-            publishedAt,
-            fetchedAtDate,
-          );
-
-          const textToSearch = normalizeForSearch(`${title} ${description}`);
-
-          const matchedKeywords = getMatchedKeywords(
-            textToSearch,
-            keywordWeights,
-          );
-          if (!matchedKeywords.length) continue;
-
-          const matchedLocation = getMatchedLocation(textToSearch, geoDict);
-          if (!matchedLocation) continue;
-
-          const keywordFamilies = getKeywordFamilies(
-            matchedKeywords,
-            keywordWeights,
-          );
-
-          const severityScore = getSeverityScore(
-            matchedKeywords,
-            articleAgeMinutes,
-            keywordWeights,
-          );
-
-          const severityLevel = getSeverityLevel(severityScore);
-
-          /**
-           * Low-score matches are usually noisy.
-           * Example: an article matching only "police" and "France" should not
-           * automatically become an OSIRIS incident unless other strong terms exist.
-           */
-          if (severityScore < 18) continue;
-
-          const confidenceScore = getConfidenceScore({
-            sourceReliability: feed.reliability,
-            locationConfidence: matchedLocation.confidence,
-            matchedKeywords,
-            publishedAt,
-            geoPrecision: matchedLocation.precision,
-          });
-
-          const confidenceLevel = getConfidenceLevel(confidenceScore);
-          const displayCoords = getDisplayCoords(
-            matchedLocation.coords,
-            eventId,
-            matchedLocation.precision,
-          );
-
-          const whyFlagged = buildWhyFlagged({
-            matchedKeywords,
-            matchedLocation,
-            source: feed.source,
-          });
-
-          const knownFacts = buildKnownFacts({
-            source: feed.source,
-            title,
-            matchedKeywords,
-            matchedLocation,
-            publishedAt,
-          });
-
-          const inferredMeaning = buildInferredMeaning({
-            matchedLocation,
-            keywordFamilies,
-            severityLevel,
-          });
-
-          const uncertainty = buildUncertainty({
-            matchedLocation,
-            publishedAt,
-          });
-
-          const watchNext = buildWatchNext(keywordFamilies);
-
-          const id = `osint-${feed.source.replace(/\s+/g, "")}-${eventId++}`;
-
-          const eventForHtml = {
-            title,
-            url,
-            source: feed.source,
-            severityLevel,
-            confidenceLevel,
-            matchedLocation,
-            matchedKeywords,
-            whyFlagged,
-          };
-
-          allEvents.push({
-            id,
-            lat: displayCoords[1],
-            lng: displayCoords[0],
-            name: `[${feed.source}] ${title}`,
-            title,
-            description,
-            url,
-            html: buildEventHtml(eventForHtml),
-            type: "conflict",
-            source: feed.source,
-            sourceReliability: feed.reliability,
-            publishedAt,
-            fetchedAt,
-            articleAgeMinutes,
-            matchedKeywords,
-            keywordFamilies,
-            matchedLocation,
-            geoPrecision: matchedLocation.precision,
-            displayJitterApplied: true,
-            severityScore,
-            severityLevel,
-            confidenceScore,
-            confidenceLevel,
-            whyFlagged,
-            knownFacts,
-            inferredMeaning,
-            uncertainty,
-            watchNext,
-            metadata: {
-              mapper: "rss_keyword_geo_mapper",
-              sourceType: "rss",
-              exactLocationVerified: false,
-              fullGdeltEvent: false,
-            },
-          });
+        if (!matchedKeywords.length) {
+          recordRejection(diagnostics, "no_keyword_match");
+          continue;
         }
-      } catch (error) {
-        console.warn(`Failed to fetch ${feed.source}:`, error);
+
+        const matchedLocation = getMatchedLocation(textToSearch, geoDict);
+
+        if (!matchedLocation) {
+          recordRejection(diagnostics, "no_location_match");
+          continue;
+        }
+
+        const keywordFamilies = getKeywordFamilies(
+          matchedKeywords,
+          keywordWeights,
+        );
+        const severityScore = getSeverityScore(
+          matchedKeywords,
+          articleAgeMinutes,
+          keywordWeights,
+        );
+        const severityLevel = getSeverityLevel(severityScore);
+
+        /**
+         * Low-score matches are usually noisy.
+         * Example: an article matching only "police" and "France" should not
+         * automatically become an OSIRIS incident unless other strong terms exist.
+         */
+        if (severityScore < 18) {
+          recordRejection(diagnostics, "below_severity_threshold");
+          continue;
+        }
+
+        const confidenceScore = getConfidenceScore({
+          sourceReliability: feed.reliabilityWeight,
+          locationConfidence: matchedLocation.confidence,
+          matchedKeywords,
+          publishedAt,
+          geoPrecision: matchedLocation.precision,
+        });
+
+        const confidenceLevel = getConfidenceLevel(confidenceScore);
+        const displayCoords = getDisplayCoords(
+          matchedLocation.coords,
+          eventId,
+          matchedLocation.precision,
+        );
+
+        const whyFlagged = buildWhyFlagged({
+          matchedKeywords,
+          matchedLocation,
+          source: feed.name,
+        });
+        const knownFacts = buildKnownFacts({
+          source: feed.name,
+          title,
+          matchedKeywords,
+          matchedLocation,
+          publishedAt,
+        });
+        const inferredMeaning = buildInferredMeaning({
+          matchedLocation,
+          keywordFamilies,
+          severityLevel,
+        });
+        const uncertainty = buildUncertainty({
+          matchedLocation,
+          publishedAt,
+        });
+        const watchNext = buildWatchNext(keywordFamilies);
+        const id = `osint-${feed.id}-${eventId++}`;
+        const eventForHtml = {
+          title,
+          url,
+          source: feed.name,
+          severityLevel,
+          confidenceLevel,
+          matchedLocation,
+          matchedKeywords,
+          whyFlagged,
+        };
+
+        diagnostics.acceptedItems += 1;
+
+        allEvents.push({
+          id,
+          lat: displayCoords[1],
+          lng: displayCoords[0],
+          name: `[${feed.name}] ${title}`,
+          title,
+          description,
+          url,
+          html: buildEventHtml(eventForHtml),
+          type: "conflict",
+          sourceId: feed.id,
+          source: feed.name,
+          sourceCategory: feed.category,
+          sourceTags: feed.tags,
+          sourceReliability: feed.reliabilityWeight,
+          sourceRefreshIntervalMinutes: feed.refreshIntervalMinutes,
+          publishedAt,
+          fetchedAt,
+          articleAgeMinutes,
+          matchedKeywords,
+          keywordFamilies,
+          matchedLocation,
+          geoPrecision: matchedLocation.precision,
+          displayJitterApplied: true,
+          severityScore,
+          severityLevel,
+          confidenceScore,
+          confidenceLevel,
+          whyFlagged,
+          knownFacts,
+          inferredMeaning,
+          uncertainty,
+          watchNext,
+          metadata: {
+            mapper: "rss_keyword_geo_mapper",
+            sourceType: "rss",
+            sourceId: feed.id,
+            sourceCategory: feed.category,
+            sourceTags: feed.tags,
+            exactLocationVerified: false,
+            fullGdeltEvent: false,
+          },
+        });
       }
     }
 
     const derivedSignals = buildDerivedSignals(allEvents, fetchedAt);
+    await writeSourceIngestionDiagnostics(sourceDiagnostics);
 
     return NextResponse.json(
       {
@@ -1392,11 +1434,26 @@ export async function GET() {
           feedCount: rssFeeds.length,
           keywordCount: Object.keys(keywordWeights).length,
           locationCount: Object.keys(geoDict).length,
-          feeds: rssFeeds.map((feed) => ({
-            source: feed.source,
-            url: feed.url,
-            reliability: feed.reliability,
+          cacheHitCount: pullResults.filter((result) => result.fromCache).length,
+          staleCacheCount: pullResults.filter((result) => result.isStale).length,
+          failedFeedCount: pullResults.filter(
+            (result) => result.pullStatus === "error",
+          ).length,
+          feeds: pullResults.map((result) => ({
+            id: result.feed.id,
+            source: result.feed.name,
+            url: result.feed.url,
+            category: result.feed.category,
+            tags: result.feed.tags,
+            reliability: result.feed.reliabilityWeight,
+            refreshIntervalMinutes: result.feed.refreshIntervalMinutes,
+            pullStatus: result.pullStatus,
+            itemCount: result.itemCount,
+            lastSuccessAt: result.lastSuccessAt,
+            nextRefreshAt: result.nextRefreshAt,
+            error: result.error,
           })),
+          sourceDiagnostics,
           limitations: [
             "Keyword matching can produce false positives.",
             "Location matching is dictionary-based and may be approximate.",

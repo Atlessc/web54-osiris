@@ -1677,21 +1677,21 @@ Stop hardcoding RSS sources.
 
 ### Tasks
 
-- [ ] Make source ingestion read `osiris-data/rss-feeds.json`
-- [ ] Only pull enabled feeds
-- [ ] Respect refresh intervals
-- [ ] Use category/tags/reliability weight from feed config
-- [ ] Add source health output
-- [ ] Add rejection reasons
-- [ ] Add source manager test-pull action
-- [ ] Cache source pull results locally
+- [x] Make source ingestion read `osiris-data/rss-feeds.json`
+- [x] Only pull enabled feeds
+- [x] Respect refresh intervals
+- [x] Use category/tags/reliability weight from feed config
+- [x] Add source health output
+- [x] Add rejection reasons
+- [x] Add source manager test-pull action
+- [x] Cache source pull results locally
 
 ### Acceptance Criteria
 
-- [ ] User-added RSS feeds are used by OSIRIS
-- [ ] Disabled feeds are ignored
-- [ ] Source health reflects local feed config
-- [ ] Feed errors are visible in UI
+- [x] User-added RSS feeds are used by OSIRIS
+- [x] Disabled feeds are ignored
+- [x] Source health reflects local feed config
+- [x] Feed errors are visible in UI
 
 ---
 
@@ -2063,7 +2063,7 @@ OSIRIS 2.0 is on track when:
 - [ ] updates write valid formatted JSON
 - [ ] backups are created before writes
 - [ ] invalid config cannot overwrite valid config
-- [ ] source ingestion reads RSS feeds from local JSON
+- [x] source ingestion reads RSS feeds from local JSON
 - [ ] keyword matching reads keyword packs from local JSON
 - [ ] no Electron is required
 - [ ] no hosted auth is required

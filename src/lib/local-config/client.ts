@@ -2,7 +2,18 @@ import type {
   ConfigStatusResponse,
   LocalConfigMap,
   LocalConfigName,
+  RssFeedConfig,
 } from "@/types/local-config";
+import type {
+  SourceHealthResponse,
+  SourceTestResponse,
+} from "@/types/source-health";
+
+export type {
+  SourceHealthItem,
+  SourceHealthResponse,
+  SourceTestResponse,
+} from "@/types/source-health";
 
 export async function getLocalConfig<TConfigName extends LocalConfigName>(
   configName: TConfigName,
@@ -106,35 +117,17 @@ export async function importLocalConfigBundle(
   return payload as LocalConfigImportResponse;
 }
 
-export interface SourceHealthItem {
-  id: string;
-  name: string;
-  url: string;
-  category: string;
-  enabled: boolean;
-  status: "online" | "warning" | "offline";
-  httpStatus: number | null;
-  responseTimeMs: number | null;
-  checkedAt: string;
-  error: string | null;
-}
+export async function getSourceHealth(options: {
+  refresh?: boolean;
+} = {}): Promise<SourceHealthResponse> {
+  const searchParams = new URLSearchParams();
 
-export interface SourceHealthResponse {
-  ok: boolean;
-  checkedAt: string;
-  summary: {
-    total: number;
-    online: number;
-    warning: number;
-    offline: number;
-    failedSourceCount: number;
-  };
-  sources: SourceHealthItem[];
-  error?: string;
-}
+  if (options.refresh) {
+    searchParams.set("refresh", "true");
+  }
 
-export async function getSourceHealth(): Promise<SourceHealthResponse> {
-  const response = await fetch("/api/source-health", {
+  const query = searchParams.size ? `?${searchParams.toString()}` : "";
+  const response = await fetch(`/api/source-health${query}`, {
     cache: "no-store",
   });
 
@@ -145,4 +138,25 @@ export async function getSourceHealth(): Promise<SourceHealthResponse> {
   }
 
   return payload as SourceHealthResponse;
+}
+
+export async function testRssSource(
+  feed: RssFeedConfig,
+): Promise<SourceTestResponse> {
+  const response = await fetch("/api/source-health", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify({ feed }),
+  });
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Failed to test RSS source");
+  }
+
+  return payload as SourceTestResponse;
 }

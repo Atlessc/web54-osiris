@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Loader2,
+  PlugZap,
   Plus,
   Radio,
   RotateCcw,
@@ -17,9 +18,11 @@ import {
 
 import {
   getLocalConfig,
+  testRssSource,
   updateLocalConfig,
 } from "@/lib/local-config/client";
 import type { RssFeedConfig, RssFeedsConfig } from "@/types/local-config";
+import type { SourceHealthItem } from "@/types/source-health";
 
 const EMPTY_FEED: RssFeedConfig = {
   id: "",
@@ -93,6 +96,11 @@ export function SourcesSettingsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [testingIndex, setTestingIndex] = useState<number | null>(null);
+  const [testResults, setTestResults] = useState<
+    Record<number, SourceHealthItem>
+  >({});
+  const [testErrors, setTestErrors] = useState<Record<number, string>>({});
 
   const isDirty = useMemo(() => {
     if (!initialFeeds) return false;
@@ -190,6 +198,16 @@ export function SourcesSettingsPage() {
   ) {
     setSaveMessage(null);
     setSaveError(null);
+    setTestResults((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+    setTestErrors((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
 
     setFeeds((current) =>
       current.map((feed, feedIndex) => {
@@ -228,6 +246,8 @@ export function SourcesSettingsPage() {
     setSaveError(null);
 
     setFeeds((current) => current.filter((_, feedIndex) => feedIndex !== index));
+    setTestResults({});
+    setTestErrors({});
   }
 
   function resetForm() {
@@ -236,6 +256,8 @@ export function SourcesSettingsPage() {
     setFeeds(initialFeeds);
     setSaveError(null);
     setSaveMessage(null);
+    setTestResults({});
+    setTestErrors({});
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -271,6 +293,49 @@ export function SourcesSettingsPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function testFeed(index: number) {
+    const feed = feeds[index];
+
+    if (!feed) return;
+
+    setTestingIndex(index);
+    setTestErrors((current) => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+
+    try {
+      const response = await testRssSource({
+        ...feed,
+        id: feed.id.trim(),
+        name: feed.name.trim(),
+        url: feed.url.trim(),
+        category: feed.category.trim(),
+        reliabilityWeight: Number(feed.reliabilityWeight),
+        refreshIntervalMinutes: Number(feed.refreshIntervalMinutes),
+        tags: feed.tags.map((tag) => tag.trim()).filter(Boolean),
+      });
+
+      if (!response.source) {
+        throw new Error(response.error ?? "Source test returned no result");
+      }
+
+      setTestResults((current) => ({
+        ...current,
+        [index]: response.source as SourceHealthItem,
+      }));
+    } catch (error) {
+      setTestErrors((current) => ({
+        ...current,
+        [index]:
+          error instanceof Error ? error.message : "Failed to test RSS source",
+      }));
+    } finally {
+      setTestingIndex(null);
     }
   }
 
@@ -407,6 +472,20 @@ export function SourcesSettingsPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => testFeed(index)}
+                          disabled={testingIndex === index}
+                          className="inline-flex items-center gap-2 rounded-xl border border-[rgba(0,229,255,0.25)] bg-[rgba(0,229,255,0.06)] px-3 py-2 text-xs text-[var(--cyan-primary)] transition hover:bg-[rgba(0,229,255,0.12)] disabled:cursor-wait disabled:opacity-50"
+                        >
+                          {testingIndex === index ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <PlugZap className="h-3.5 w-3.5" />
+                          )}
+                          Test Pull
+                        </button>
+
                         {feed.url ? (
                           <a
                             href={feed.url}
@@ -554,6 +633,49 @@ export function SourcesSettingsPage() {
                         />
                       </label>
                     </div>
+
+                    {testResults[index] ? (
+                      <div
+                        className={[
+                          "mt-4 rounded-2xl border p-4",
+                          testResults[index].status === "online"
+                            ? "border-[rgba(0,255,170,0.22)] bg-[rgba(0,255,170,0.05)]"
+                            : testResults[index].status === "warning"
+                              ? "border-[rgba(212,175,55,0.25)] bg-[rgba(212,175,55,0.06)]"
+                              : "border-[rgba(255,80,80,0.3)] bg-[rgba(255,80,80,0.07)]",
+                        ].join(" ")}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[var(--text-heading)]">
+                            Test result: {testResults[index].status}
+                          </p>
+
+                          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                            {testResults[index].pullStatus}
+                          </p>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 text-xs text-[var(--text-secondary)] sm:grid-cols-3">
+                          <p>HTTP: {testResults[index].httpStatus ?? "—"}</p>
+                          <p>
+                            Response: {testResults[index].responseTimeMs ?? "—"}ms
+                          </p>
+                          <p>Items: {testResults[index].itemCount}</p>
+                        </div>
+
+                        {testResults[index].error ? (
+                          <p className="mt-3 break-words text-xs leading-5 text-[var(--alert-red)]">
+                            {testResults[index].error}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {testErrors[index] ? (
+                      <p className="mt-4 rounded-2xl border border-[rgba(255,80,80,0.3)] bg-[rgba(255,80,80,0.07)] p-4 text-xs leading-5 text-[var(--alert-red)]">
+                        {testErrors[index]}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
 

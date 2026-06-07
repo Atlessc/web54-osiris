@@ -163,7 +163,7 @@
     "url": "https://www.rferl.org/api/zrqiteuuir",
     "type": "rss",
     "category": "regional-intel",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 15,
     "tags": [
@@ -241,7 +241,7 @@
     "url": "https://rssfeeds.usatoday.com/usatoday-NewsTopStories",
     "type": "rss",
     "category": "us-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.72,
     "refreshIntervalMinutes": 15,
     "tags": [
@@ -301,7 +301,7 @@
     "url": "https://www.politico.com/rss/politicopicks.xml",
     "type": "rss",
     "category": "us-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.74,
     "refreshIntervalMinutes": 30,
     "tags": [
@@ -316,7 +316,7 @@
     "url": "https://www.thedefensepost.com/feed/",
     "type": "rss",
     "category": "defense",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.72,
     "refreshIntervalMinutes": 30,
     "tags": [
@@ -759,7 +759,7 @@
     "url": "https://www.imf.org/en/News/RSS",
     "type": "rss",
     "category": "finance",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.9,
     "refreshIntervalMinutes": 60,
     "tags": [
@@ -890,7 +890,7 @@
     "url": "https://reliefweb.int/disasters/rss.xml",
     "type": "rss",
     "category": "humanitarian",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.86,
     "refreshIntervalMinutes": 30,
     "tags": [
@@ -906,7 +906,7 @@
     "url": "https://reliefweb.int/updates/rss.xml",
     "type": "rss",
     "category": "humanitarian",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.86,
     "refreshIntervalMinutes": 30,
     "tags": [
@@ -939,7 +939,7 @@
     "url": "https://tools.cdc.gov/api/v2/resources/media/403372.rss",
     "type": "rss",
     "category": "health-security",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.9,
     "refreshIntervalMinutes": 60,
     "tags": [
@@ -987,7 +987,7 @@
     "url": "https://laist.com/news/rss",
     "type": "rss",
     "category": "local-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.68,
     "refreshIntervalMinutes": 30,
     "tags": [
@@ -1035,7 +1035,7 @@
     "url": "https://crosscut.com/rss.xml",
     "type": "rss",
     "category": "local-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.68,
     "refreshIntervalMinutes": 60,
     "tags": [
@@ -1052,7 +1052,7 @@
     "url": "https://www.opb.org/news/rss/",
     "type": "rss",
     "category": "portland-local",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.78,
     "refreshIntervalMinutes": 30,
     "tags": [
@@ -1084,7 +1084,7 @@
     "url": "https://www.wweek.com/feeds/news/",
     "type": "rss",
     "category": "portland-local",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.68,
     "refreshIntervalMinutes": 30,
     "tags": [
