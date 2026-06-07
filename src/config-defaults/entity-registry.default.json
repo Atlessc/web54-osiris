@@ -1,0 +1,56 @@
+[
+  {
+    "id": "nato",
+    "name": "North Atlantic Treaty Organization",
+    "type": "international-organization",
+    "aliases": ["NATO"],
+    "country": null,
+    "tags": ["military", "alliance", "europe", "security"],
+    "watchPriority": "high"
+  },
+  {
+    "id": "united-nations",
+    "name": "United Nations",
+    "type": "international-organization",
+    "aliases": ["UN", "U.N."],
+    "country": null,
+    "tags": ["international", "humanitarian", "diplomacy"],
+    "watchPriority": "normal"
+  },
+  {
+    "id": "world-health-organization",
+    "name": "World Health Organization",
+    "type": "international-organization",
+    "aliases": ["WHO"],
+    "country": null,
+    "tags": ["health", "outbreak", "public-health"],
+    "watchPriority": "normal"
+  },
+  {
+    "id": "cisa",
+    "name": "Cybersecurity and Infrastructure Security Agency",
+    "type": "government-agency",
+    "aliases": ["CISA"],
+    "country": "United States",
+    "tags": ["cyber", "infrastructure", "security"],
+    "watchPriority": "high"
+  },
+  {
+    "id": "federal-reserve",
+    "name": "Federal Reserve",
+    "type": "government-agency",
+    "aliases": ["Fed", "Federal Reserve Board"],
+    "country": "United States",
+    "tags": ["finance", "markets", "monetary-policy"],
+    "watchPriority": "normal"
+  },
+  {
+    "id": "houthi-movement",
+    "name": "Houthi Movement",
+    "type": "organization",
+    "aliases": ["Houthis", "Ansar Allah"],
+    "country": "Yemen",
+    "tags": ["conflict", "red-sea", "maritime"],
+    "watchPriority": "high"
+  }
+]
