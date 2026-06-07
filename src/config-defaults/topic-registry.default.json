@@ -1,0 +1,57 @@
+[
+  {
+    "id": "conflict-monitoring",
+    "slug": "conflict-monitoring",
+    "name": "Conflict Monitoring",
+    "description": "Armed conflict, kinetic strikes, troop movement, ceasefires, and escalation indicators.",
+    "enabled": true,
+    "keywordPacks": ["conflict", "kinetic", "military"],
+    "defaultSeverity": "watch",
+    "tone": "negative",
+    "tags": ["conflict", "military", "security"]
+  },
+  {
+    "id": "civil-unrest",
+    "slug": "civil-unrest",
+    "name": "Civil Unrest",
+    "description": "Protests, riots, curfews, crackdowns, and public instability.",
+    "enabled": true,
+    "keywordPacks": ["civil-unrest", "political"],
+    "defaultSeverity": "watch",
+    "tone": "mixed",
+    "tags": ["society", "politics", "unrest"]
+  },
+  {
+    "id": "cybersecurity",
+    "slug": "cybersecurity",
+    "name": "Cybersecurity",
+    "description": "Cyberattacks, vulnerabilities, ransomware, breaches, and infrastructure disruption.",
+    "enabled": true,
+    "keywordPacks": ["cyber", "infrastructure"],
+    "defaultSeverity": "watch",
+    "tone": "negative",
+    "tags": ["cyber", "security", "infrastructure"]
+  },
+  {
+    "id": "natural-hazards",
+    "slug": "natural-hazards",
+    "name": "Natural Hazards",
+    "description": "Earthquakes, storms, floods, wildfires, and emergency response indicators.",
+    "enabled": true,
+    "keywordPacks": ["natural-hazards", "humanitarian"],
+    "defaultSeverity": "watch",
+    "tone": "negative",
+    "tags": ["weather", "disaster", "hazards"]
+  },
+  {
+    "id": "supply-chain",
+    "slug": "supply-chain",
+    "name": "Supply Chain",
+    "description": "Ports, shipping, freight, logistics, labor disruption, and infrastructure impacts.",
+    "enabled": true,
+    "keywordPacks": ["supply-chain", "infrastructure"],
+    "defaultSeverity": "notice",
+    "tone": "mixed",
+    "tags": ["shipping", "logistics", "markets"]
+  }
+]
