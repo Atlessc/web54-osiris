@@ -1,0 +1,112 @@
+[
+  {
+    "id": "bbc-world",
+    "name": "BBC World",
+    "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.85,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "general", "breaking", "international"]
+  },
+  {
+    "id": "aljazeera-world",
+    "name": "Al Jazeera World",
+    "url": "https://www.aljazeera.com/xml/rss/all.xml",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.8,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "middle-east", "general", "conflict"]
+  },
+  {
+    "id": "nyt-world",
+    "name": "NYT World",
+    "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.8,
+    "refreshIntervalMinutes": 15,
+    "tags": ["world", "general", "new-york-times"]
+  },
+  {
+    "id": "guardian-world",
+    "name": "The Guardian World",
+    "url": "https://www.theguardian.com/world/rss",
+    "type": "rss",
+    "category": "world-news",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 30,
+    "tags": ["world", "general", "uk", "international"]
+  },
+  {
+    "id": "npr-news",
+    "name": "NPR News",
+    "url": "https://feeds.npr.org/1001/rss.xml",
+    "type": "rss",
+    "category": "us-news",
+    "enabled": true,
+    "reliabilityWeight": 0.82,
+    "refreshIntervalMinutes": 15,
+    "tags": ["usa", "national", "public-radio", "general"]
+  },
+  {
+    "id": "cisa-alerts",
+    "name": "CISA Cybersecurity Advisories",
+    "url": "https://www.cisa.gov/cybersecurity-advisories/all.xml",
+    "type": "rss",
+    "category": "cybersecurity",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 30,
+    "tags": ["cyber", "security", "government", "infrastructure", "official"]
+  },
+  {
+    "id": "bleepingcomputer",
+    "name": "BleepingComputer",
+    "url": "https://www.bleepingcomputer.com/feed/",
+    "type": "rss",
+    "category": "cybersecurity",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 30,
+    "tags": ["cyber", "ransomware", "malware", "breach"]
+  },
+  {
+    "id": "usgs-significant-earthquakes",
+    "name": "USGS Significant Earthquakes",
+    "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+    "type": "rss",
+    "category": "natural-hazards",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 15,
+    "tags": ["earthquake", "seismic", "hazards", "usgs", "official"]
+  },
+  {
+    "id": "noaa-national-hurricane-center",
+    "name": "NOAA National Hurricane Center",
+    "url": "https://www.nhc.noaa.gov/index-at.xml",
+    "type": "rss",
+    "category": "weather",
+    "enabled": true,
+    "reliabilityWeight": 0.95,
+    "refreshIntervalMinutes": 30,
+    "tags": ["weather", "hurricane", "storm", "noaa", "official"]
+  },
+  {
+    "id": "opb-news",
+    "name": "OPB News",
+    "url": "https://www.opb.org/news/rss/",
+    "type": "rss",
+    "category": "portland-local",
+    "enabled": true,
+    "reliabilityWeight": 0.78,
+    "refreshIntervalMinutes": 30,
+    "tags": ["oregon", "portland", "pnw", "local", "public-media"]
+  }
+]
