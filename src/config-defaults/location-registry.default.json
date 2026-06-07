@@ -1,0 +1,106 @@
+[
+  {
+    "id": "portland-or",
+    "name": "Portland, OR",
+    "type": "city",
+    "region": "north-america",
+    "aliases": ["Portland", "PDX"],
+    "coordinates": {
+      "lat": 45.5152,
+      "lng": -122.6784
+    },
+    "watchPriority": "high",
+    "tags": ["usa", "oregon", "pnw", "local"]
+  },
+  {
+    "id": "ukraine",
+    "name": "Ukraine",
+    "type": "country",
+    "region": "europe",
+    "aliases": [],
+    "coordinates": {
+      "lat": 48.3794,
+      "lng": 31.1656
+    },
+    "watchPriority": "high",
+    "tags": ["europe", "war", "conflict"]
+  },
+  {
+    "id": "kyiv",
+    "name": "Kyiv, Ukraine",
+    "type": "city",
+    "region": "europe",
+    "aliases": ["Kiev"],
+    "coordinates": {
+      "lat": 50.4501,
+      "lng": 30.5234
+    },
+    "watchPriority": "high",
+    "tags": ["ukraine", "capital", "conflict"]
+  },
+  {
+    "id": "gaza",
+    "name": "Gaza",
+    "type": "region",
+    "region": "middle-east",
+    "aliases": ["Gaza Strip"],
+    "coordinates": {
+      "lat": 31.5017,
+      "lng": 34.4668
+    },
+    "watchPriority": "high",
+    "tags": ["middle-east", "conflict", "humanitarian"]
+  },
+  {
+    "id": "israel",
+    "name": "Israel",
+    "type": "country",
+    "region": "middle-east",
+    "aliases": [],
+    "coordinates": {
+      "lat": 31.0461,
+      "lng": 34.8516
+    },
+    "watchPriority": "high",
+    "tags": ["middle-east", "conflict"]
+  },
+  {
+    "id": "iran",
+    "name": "Iran",
+    "type": "country",
+    "region": "middle-east",
+    "aliases": [],
+    "coordinates": {
+      "lat": 32.4279,
+      "lng": 53.688
+    },
+    "watchPriority": "high",
+    "tags": ["middle-east", "regional-intel"]
+  },
+  {
+    "id": "taiwan",
+    "name": "Taiwan",
+    "type": "country",
+    "region": "asia-pacific",
+    "aliases": [],
+    "coordinates": {
+      "lat": 23.6978,
+      "lng": 120.9605
+    },
+    "watchPriority": "high",
+    "tags": ["asia", "tension", "maritime"]
+  },
+  {
+    "id": "red-sea",
+    "name": "Red Sea",
+    "type": "maritime-region",
+    "region": "middle-east",
+    "aliases": ["Bab el-Mandeb", "Bab al-Mandab"],
+    "coordinates": {
+      "lat": 15.5,
+      "lng": 41.8
+    },
+    "watchPriority": "high",
+    "tags": ["maritime", "shipping", "conflict", "supply-chain"]
+  }
+]
