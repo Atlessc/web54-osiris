@@ -13,7 +13,9 @@
 
 # Production
 /build
-/osiris-data/cache/
+
+# OSIRIS local runtime data
+/osiris-data/
 
 # Misc
 .DS_Store
