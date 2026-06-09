@@ -114,11 +114,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     ctx.fillRect(cx - size * 0.1, cy - size * 0.02, size * 0.2, size * 0.16);
 
     // Outer tactical ring
-    ctx.strokeStyle = `${color}AA`;
-    ctx.lineWidth = Math.max(1, size * 0.04);
-    ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.46, 0, Math.PI * 2);
-    ctx.stroke();
+    // ctx.strokeStyle = `${color}AA`;
+    // ctx.lineWidth = Math.max(1, size * 0.04);
+    // ctx.beginPath();
+    // ctx.arc(cx, cy, size * 0.46, 0, Math.PI * 2);
+    // ctx.stroke();
 
     ctx.restore();
 
