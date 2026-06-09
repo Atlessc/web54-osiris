@@ -579,7 +579,7 @@
     "enabled": true,
     "reliabilityWeight": 0.68,
     "refreshIntervalMinutes": 30,
-    "spectrumScore": 58,
+    "spectrumScore": 33,
     "spectrumConfidence": "medium",
     "spectrumAsOf": "2026-06-08",
     "spectrumReferenceUrl": "https://www.allsides.com/news-source/washington-times",

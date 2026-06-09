@@ -71,6 +71,64 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     map.addImage(id, { width: size, height: size, data: new Uint8Array(ctx.getImageData(0, 0, size, size).data) });
   }, []);
 
+  const createShipIcon = useCallback((map: maplibregl.Map, id: string, color: string, size: number) => {
+    if (map.hasImage(id)) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+
+    const ctx = canvas.getContext('2d')!;
+    const cx = size / 2;
+    const cy = size / 2;
+
+    ctx.save();
+
+    // Soft glow
+    ctx.shadowColor = color;
+    ctx.shadowBlur = size * 0.18;
+
+    // Hull / bow shape. Points upward so MapLibre rotation works like aircraft.
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size * 0.42);
+    ctx.lineTo(cx - size * 0.24, cy - size * 0.04);
+    ctx.lineTo(cx - size * 0.18, cy + size * 0.32);
+    ctx.lineTo(cx, cy + size * 0.42);
+    ctx.lineTo(cx + size * 0.18, cy + size * 0.32);
+    ctx.lineTo(cx + size * 0.24, cy - size * 0.04);
+    ctx.closePath();
+    ctx.fill();
+
+    // Deck line
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = Math.max(1, size * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size * 0.24);
+    ctx.lineTo(cx, cy + size * 0.26);
+    ctx.stroke();
+
+    // Cabin block
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(cx - size * 0.1, cy - size * 0.02, size * 0.2, size * 0.16);
+
+    // Outer tactical ring
+    ctx.strokeStyle = `${color}AA`;
+    ctx.lineWidth = Math.max(1, size * 0.04);
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.46, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+
+    map.addImage(id, {
+      width: size,
+      height: size,
+      data: new Uint8Array(ctx.getImageData(0, 0, size, size).data),
+    });
+  }, []);
+
   const createDot = useCallback((map: maplibregl.Map, id: string, color: string, size: number) => {
     if (map.hasImage(id)) return;
     const canvas = document.createElement('canvas');
@@ -101,6 +159,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createIcon(map, 'plane-pink', '#FF69B4', 24);
       createIcon(map, 'plane-red', '#FF3D3D', 24);
       createIcon(map, 'plane-grey', '#555555', 24);
+      createShipIcon(map, 'ship-cargo', '#00BCD4', 24);
+      createShipIcon(map, 'ship-tanker', '#FF9500', 24);
+      createShipIcon(map, 'ship-military', '#FF1744', 24);
+      createShipIcon(map, 'ship-passenger', '#D4AF37', 24);
+      createShipIcon(map, 'ship-service', '#00E676', 24);
+      createShipIcon(map, 'ship-fishing', '#76FF03', 24);
+      createShipIcon(map, 'ship-unknown', '#E8E6E0', 22);
       createDot(map, 'dot-gold', '#D4AF37', 8);
       createDot(map, 'dot-red', '#FF3D3D', 10);
       createDot(map, 'dot-orange', '#FF9500', 10);
@@ -564,11 +629,36 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
       // Maritime Ships (moving entities)
       map.addLayer({
-        id: 'ship-dots', type: 'circle', source: 'maritime-ships', paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 2, 5, 4, 10, 6],
-          'circle-color': ['match', ['get', 'type'], 'military', '#FF1744', 'tanker', '#FF9500', 'cargo', '#00BCD4', '#fff'],
-          'circle-opacity': 0.8,
-        }
+        id: 'ship-dots',
+        type: 'symbol',
+        source: 'maritime-ships',
+        layout: {
+          'icon-image': [
+            'match',
+            ['get', 'type'],
+            'cargo',
+            'ship-cargo',
+            'tanker',
+            'ship-tanker',
+            'military',
+            'ship-military',
+            'passenger',
+            'ship-passenger',
+            'service',
+            'ship-service',
+            'fishing',
+            'ship-fishing',
+            'ship-unknown',
+          ],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.45, 5, 0.7, 10, 1],
+          'icon-rotate': ['coalesce', ['get', 'heading'], ['get', 'course'], 0],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+        paint: {
+          'icon-opacity': 0.9,
+        },
       });
       map.addLayer({
         id: 'ship-label', type: 'symbol', source: 'maritime-ships', minzoom: 5, layout: {
@@ -980,6 +1070,134 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       </div>`);
     });
 
+    // ── Maritime Ships / AIS Vessels ──
+    map.on('click', 'ship-dots', e => {
+      if (!e.features?.length) return;
+
+      const p = e.features[0].properties as any;
+      const coords = (e.features[0].geometry as any).coordinates;
+
+      const typeColor =
+        p.type === 'military'
+          ? '#FF1744'
+          : p.type === 'tanker'
+            ? '#FF9500'
+            : p.type === 'cargo'
+              ? '#00BCD4'
+              : p.type === 'passenger'
+                ? '#D4AF37'
+                : p.type === 'service'
+                  ? '#00E676'
+                  : p.type === 'fishing'
+                    ? '#76FF03'
+                    : '#E8E6E0';
+
+      const ageSeconds = Number(p.ageSeconds);
+      const ageLabel = Number.isFinite(ageSeconds)
+        ? ageSeconds < 60
+          ? `${ageSeconds}s ago`
+          : `${Math.round(ageSeconds / 60)}m ago`
+        : 'Unknown';
+
+      const speedLabel =
+        typeof p.speed === 'number' || !Number.isNaN(Number(p.speed))
+          ? `${Number(p.speed).toFixed(1)} kt`
+          : '—';
+
+      const headingLabel =
+        typeof p.heading === 'number' || !Number.isNaN(Number(p.heading))
+          ? `${Math.round(Number(p.heading))}°`
+          : '—';
+
+      const zoneLabel = p.nearestZoneName
+        ? `${p.nearestZoneName}${p.nearestZoneDistanceKm ? ` · ${Number(p.nearestZoneDistanceKm).toFixed(1)} km` : ''
+        }`
+        : 'Outside named watch zone';
+
+      popup(coords, `<div style="${pStyle}border:1px solid ${typeColor}55;max-width:330px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+      <div>
+        <div style="color:${typeColor};font-size:14px;font-weight:800;letter-spacing:0.08em;">
+          🚢 ${p.name || 'AIS VESSEL'}
+        </div>
+        <div style="color:#5C5A54;font-size:9px;margin-top:2px;">
+          ${String(p.type || 'unknown').toUpperCase()} · MMSI ${p.mmsi || '—'}
+        </div>
+      </div>
+
+      <div style="width:9px;height:9px;border-radius:50%;background:${typeColor};box-shadow:0 0 10px ${typeColor};"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:9px;margin-bottom:8px;">
+      <div>
+        <span style="color:#5C5A54;">STATUS</span><br/>
+        <span style="color:#E8E6E0;">${String(p.status || 'unknown').toUpperCase()}</span>
+      </div>
+
+      <div>
+        <span style="color:#5C5A54;">SPEED</span><br/>
+        <span style="color:${typeColor};font-weight:700;">${speedLabel}</span>
+      </div>
+
+      <div>
+        <span style="color:#5C5A54;">HEADING</span><br/>
+        <span style="color:#E8E6E0;">${headingLabel}</span>
+      </div>
+
+      <div>
+        <span style="color:#5C5A54;">AIS AGE</span><br/>
+        <span style="color:#00E5FF;">${ageLabel}</span>
+      </div>
+
+      <div>
+        <span style="color:#5C5A54;">FLAG / SOURCE</span><br/>
+        <span style="color:#E8E6E0;">${p.flag || '—'} / ${p.source || 'AISStream'}</span>
+      </div>
+
+      <div>
+        <span style="color:#5C5A54;">COORDS</span><br/>
+        <span style="color:#E8E6E0;">${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}</span>
+      </div>
+    </div>
+
+    ${p.destination
+          ? `<div style="font-size:9px;margin-bottom:8px;">
+            <span style="color:#5C5A54;">DESTINATION</span><br/>
+            <span style="color:#E8E6E0;">${p.destination}</span>
+          </div>`
+          : ''
+        }
+
+    <div style="font-size:9px;color:#E8E6E0;line-height:1.35;margin-bottom:8px;padding:6px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);">
+      <span style="color:#5C5A54;">WATCH ZONE</span><br/>
+      ${zoneLabel}
+    </div>
+
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <a href="https://www.google.com/maps/@${coords[1]},${coords[0]},12z" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:#448AFF;border:1px solid rgba(68,138,255,0.4);background:rgba(68,138,255,0.1);">MAP</a>
+      ${p.mmsi
+          ? `<a href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${p.mmsi}" target="_blank" rel="noopener noreferrer" style="${linkStyle}color:${typeColor};border:1px solid ${typeColor}66;background:${typeColor}18;">MMSI LOOKUP</a>`
+          : ''
+        }
+    </div>
+  </div>`);
+
+      onEntityClick?.({
+        type: 'maritime_ship',
+        ...p,
+        lat: coords[1],
+        lng: coords[0],
+      });
+    });
+
+    map.on('mouseenter', 'ship-dots', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+
+    map.on('mouseleave', 'ship-dots', () => {
+      map.getCanvas().style.cursor = '';
+    });
+
     // ── Weather Events (NASA EONET) ──
     map.on('click', 'weather-dots', e => {
       if (!e.features?.length) return;
@@ -1204,7 +1422,34 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!mapReady) return;
     setGeo('maritime', activeLayers.maritime && data.maritime_ports ? data.maritime_ports.map((p: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: { name: p.name, country: p.country, type: p.type, volume: p.volume, fleet: p.fleet, rank: p.rank } })) : []);
     setGeo('maritime-choke', activeLayers.maritime && data.maritime_chokepoints ? data.maritime_chokepoints.map((c: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { name: c.name, traffic: c.traffic, risk: c.risk } })) : []);
-    setGeo('maritime-ships', activeLayers.maritime && data.maritime_ships ? data.maritime_ships.map((s: any) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.lng, s.lat] }, properties: { name: s.name || s.mmsi?.toString(), type: s.type || 'cargo', speed: s.speed, heading: s.heading, destination: s.destination, flag: s.flag } })) : []);
+    setGeo(
+      'maritime-ships',
+      activeLayers.maritime && data.maritime_ships
+        ? data.maritime_ships.map((s: any) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [s.lng, s.lat],
+          },
+          properties: {
+            id: s.id,
+            mmsi: s.mmsi,
+            name: s.name || `MMSI-${s.mmsi}`,
+            type: s.type || 'unknown',
+            speed: s.speed,
+            heading: s.heading,
+            course: s.course,
+            destination: s.destination,
+            flag: s.flag,
+            status: s.status,
+            source: s.source || 'AISStream',
+            ageSeconds: s.ageSeconds,
+            nearestZoneName: s.nearestZoneName,
+            nearestZoneDistanceKm: s.nearestZoneDistanceKm,
+          },
+        }))
+        : [],
+    );
   }, [mapReady, data.maritime_ports, data.maritime_chokepoints, data.maritime_ships, activeLayers.maritime, setGeo]);
 
   useEffect(() => {
