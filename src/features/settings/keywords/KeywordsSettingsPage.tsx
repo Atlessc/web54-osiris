@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  FlaskConical,
   Loader2,
   Plus,
   RotateCcw,
@@ -19,6 +20,10 @@ import {
   getLocalConfig,
   updateLocalConfig,
 } from "@/lib/local-config/client";
+import {
+  getContextualKeywordMatches,
+  hasEventAction,
+} from "@/lib/event-pipeline/keywordMatching";
 import type { KeywordPacksConfig } from "@/types/local-config";
 
 function slugify(value: string) {
@@ -52,6 +57,7 @@ export function KeywordsSettingsPage() {
   const [keywordPacks, setKeywordPacks] = useState<KeywordPacksConfig>({});
 
   const [newPackName, setNewPackName] = useState("");
+  const [testText, setTestText] = useState("");
   const [newKeywordByPack, setNewKeywordByPack] = useState<Record<string, string>>(
     {},
   );
@@ -74,6 +80,20 @@ export function KeywordsSettingsPage() {
       0,
     );
   }, [keywordPacks]);
+
+  const testMatches = useMemo(
+    () =>
+      Object.entries(keywordPacks)
+        .map(([packName, keywords]) => ({
+          packName,
+          keywords: getContextualKeywordMatches(
+            testText.toLowerCase(),
+            keywords,
+          ),
+        }))
+        .filter((result) => result.keywords.length > 0),
+    [keywordPacks, testText],
+  );
 
   const isDirty = useMemo(() => {
     if (!initialKeywordPacks) return false;
@@ -367,6 +387,90 @@ export function KeywordsSettingsPage() {
           </section>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
+            <section className="rounded-3xl border border-cyan-400/15 bg-cyan-400/[0.035] p-5 md:p-6">
+              <div className="flex items-start gap-3">
+                <FlaskConical className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-cyan-300">
+                    Keyword Test Utility
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold text-[var(--text-heading)]">
+                    Test contextual matching before saving
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                    Uses the same contextual keyword rules as the global incident
+                    mapper. Ambiguous terms only match when their required context
+                    is present.
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                value={testText}
+                onChange={(event) => setTestText(event.target.value)}
+                className="mt-5 min-h-32 w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-[var(--text-heading)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-cyan-400/40"
+                placeholder="Paste a headline or article sentence to inspect keyword matches..."
+              />
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    Event Action Gate
+                  </p>
+                  <p
+                    className={[
+                      "mt-2 font-mono text-sm font-bold",
+                      testText && hasEventAction(testText.toLowerCase())
+                        ? "text-emerald-300"
+                        : "text-amber-300",
+                    ].join(" ")}
+                  >
+                    {testText && hasEventAction(testText.toLowerCase())
+                      ? "event action detected"
+                      : "no event action detected"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    Contextual Matches
+                  </p>
+                  <p className="mt-2 font-mono text-sm font-bold text-[var(--text-heading)]">
+                    {testMatches.reduce(
+                      (total, result) => total + result.keywords.length,
+                      0,
+                    )}{" "}
+                    matches across {testMatches.length} packs
+                  </p>
+                </div>
+              </div>
+
+              {testMatches.length ? (
+                <div className="mt-4 space-y-3">
+                  {testMatches.map((result) => (
+                    <div
+                      key={result.packName}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                    >
+                      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300">
+                        {result.packName}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {result.keywords.map((keyword) => (
+                          <span
+                            key={keyword}
+                            className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-xs text-[var(--text-secondary)]"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+
             <section className="rounded-3xl border border-white/10 bg-white/[0.035] p-5 md:p-6">
               <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>

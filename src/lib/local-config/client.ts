@@ -5,6 +5,10 @@ import type {
   RssFeedConfig,
 } from "@/types/local-config";
 import type {
+  LocalCacheClearResponse,
+  LocalCacheStatusResponse,
+} from "@/types/local-cache";
+import type {
   SourceHealthResponse,
   SourceTestResponse,
 } from "@/types/source-health";
@@ -43,6 +47,39 @@ export async function getLocalConfigStatus(): Promise<ConfigStatusResponse> {
   }
 
   return payload as ConfigStatusResponse;
+}
+
+export async function getLocalCacheStatus(): Promise<LocalCacheStatusResponse> {
+  const response = await fetch("/api/local-cache", {
+    cache: "no-store",
+  });
+
+  const payload = await response.json();
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error ?? "Failed to load local cache status");
+  }
+
+  return payload as LocalCacheStatusResponse;
+}
+
+export async function clearDerivedLocalCaches(): Promise<LocalCacheClearResponse> {
+  const response = await fetch("/api/local-cache", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify({ action: "clear-derived" }),
+  });
+
+  const payload = await response.json();
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error ?? "Failed to clear derived caches");
+  }
+
+  return payload as LocalCacheClearResponse;
 }
 
 export async function updateLocalConfig<TConfigName extends LocalConfigName>(

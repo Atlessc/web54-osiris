@@ -688,7 +688,10 @@ export default function MapPage() {
     // Global Incidents — RSS/GDELT OSINT mapper
     if (activeLayers.global_incidents && !layerFetchedRef.current.has('gdelt')) {
       fetchEndpoint('/api/gdelt', (d) => ({
-        gdelt: d.events || [],
+        gdelt: (d.events || []).filter(
+          (event: { metadata?: { mapEligible?: boolean } }) =>
+            event.metadata?.mapEligible !== false,
+        ),
         gdeltDerivedSignals: d.derivedSignals || [],
         gdeltMetadata: d.metadata || null,
         gdeltSourceNote: d.sourceNote || null,

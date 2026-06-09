@@ -28,7 +28,7 @@
     "logoUrl": "https://www.google.com/s2/favicons?domain=bbc.com&sz=64",
     "type": "rss",
     "category": "world-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.85,
     "refreshIntervalMinutes": 15,
     "spectrumScore": -13,
@@ -167,27 +167,6 @@
     ]
   },
   {
-    "id": "cbc-world",
-    "name": "CBC World",
-    "url": "https://www.cbc.ca/webfeed/rss/rss-world",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=cbc.ca&sz=64",
-    "type": "rss",
-    "category": "world-news",
-    "enabled": false,
-    "reliabilityWeight": 0.76,
-    "refreshIntervalMinutes": 30,
-    "spectrumScore": -33,
-    "spectrumConfidence": "low",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": "https://www.allsides.com/news-source/cbc-news-media-bias",
-    "tags": [
-      "world",
-      "canada",
-      "international",
-      "general"
-    ]
-  },
-  {
     "id": "dw-world",
     "name": "DW World",
     "url": "https://rss.dw.com/rdf/rss-en-world",
@@ -227,28 +206,6 @@
       "europe",
       "france",
       "general"
-    ]
-  },
-  {
-    "id": "rferl-latest",
-    "name": "Radio Free Europe / Radio Liberty",
-    "url": "https://www.rferl.org/api/zrqiteuuir",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=rferl.org&sz=64",
-    "type": "rss",
-    "category": "regional-intel",
-    "enabled": false,
-    "reliabilityWeight": 0.78,
-    "refreshIntervalMinutes": 15,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "europe",
-      "eurasia",
-      "russia",
-      "ukraine",
-      "central-asia"
     ]
   },
   {
@@ -333,26 +290,6 @@
     ]
   },
   {
-    "id": "usa-today-top",
-    "name": "USA Today Top Stories",
-    "url": "https://rssfeeds.usatoday.com/usatoday-NewsTopStories",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=usatoday.com&sz=64",
-    "type": "rss",
-    "category": "us-news",
-    "enabled": false,
-    "reliabilityWeight": 0.72,
-    "refreshIntervalMinutes": 15,
-    "spectrumScore": -33,
-    "spectrumConfidence": "high",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": "https://www.allsides.com/news-source/usa-today-media-bias",
-    "tags": [
-      "usa",
-      "national",
-      "general"
-    ]
-  },
-  {
     "id": "cbs-news",
     "name": "CBS News",
     "url": "https://www.cbsnews.com/latest/rss/main",
@@ -413,44 +350,375 @@
     ]
   },
   {
-    "id": "politico-top",
-    "name": "Politico Top Stories",
-    "url": "https://www.politico.com/rss/politicopicks.xml",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=politico.com&sz=64",
+    "id": "cnn-top",
+    "name": "CNN Top Stories",
+    "url": "http://rss.cnn.com/rss/cnn_topstories.rss",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=cnn.com&sz=64",
     "type": "rss",
     "category": "us-news",
-    "enabled": false,
+    "enabled": true,
     "reliabilityWeight": 0.74,
-    "refreshIntervalMinutes": 30,
-    "spectrumScore": -20,
+    "refreshIntervalMinutes": 15,
+    "spectrumScore": -38,
     "spectrumConfidence": "medium",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": "https://www.allsides.com/news-source/politico-media-bias",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/cnn-media-bias",
     "tags": [
       "usa",
-      "politics",
-      "government"
+      "national",
+      "breaking",
+      "left",
+      "mainstream"
     ]
   },
   {
-    "id": "thedefensepost",
-    "name": "The Defense Post",
-    "url": "https://www.thedefensepost.com/feed/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=thedefensepost.com&sz=64",
+    "id": "msnow-msnbc-google-news",
+    "name": "MS NOW / MSNBC via Google News",
+    "url": "https://news.google.com/rss/search?q=site%3Amsnbc.com&hl=en-US&gl=US&ceid=US%3Aen",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=msnbc.com&sz=64",
     "type": "rss",
-    "category": "defense",
-    "enabled": false,
+    "category": "left-news",
+    "enabled": true,
+    "reliabilityWeight": 0.68,
+    "refreshIntervalMinutes": 15,
+    "spectrumScore": -68,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/ms-now-media-bias",
+    "tags": [
+      "usa",
+      "politics",
+      "left",
+      "progressive",
+      "google-news-workaround"
+    ]
+  },
+  {
+    "id": "mother-jones",
+    "name": "Mother Jones",
+    "url": "https://www.motherjones.com/feed/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=motherjones.com&sz=64",
+    "type": "rss",
+    "category": "left-news",
+    "enabled": true,
+    "reliabilityWeight": 0.74,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": -72,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/mother-jones-bias",
+    "tags": [
+      "usa",
+      "politics",
+      "left",
+      "progressive",
+      "investigative"
+    ]
+  },
+  {
+    "id": "the-nation",
+    "name": "The Nation",
+    "url": "https://www.thenation.com/feed/?post_type=article",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=thenation.com&sz=64",
+    "type": "rss",
+    "category": "left-news",
+    "enabled": true,
     "reliabilityWeight": 0.72,
     "refreshIntervalMinutes": 30,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
+    "spectrumScore": -78,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/nation-media-bias",
     "tags": [
-      "defense",
-      "military",
-      "conflict",
-      "security"
+      "usa",
+      "politics",
+      "left",
+      "progressive",
+      "analysis"
+    ]
+  },
+  {
+    "id": "the-intercept",
+    "name": "The Intercept",
+    "url": "https://theintercept.com/feed/?lang=en",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=theintercept.com&sz=64",
+    "type": "rss",
+    "category": "left-news",
+    "enabled": true,
+    "reliabilityWeight": 0.74,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": -62,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/intercept",
+    "tags": [
+      "usa",
+      "politics",
+      "left",
+      "investigative",
+      "national-security"
+    ]
+  },
+  {
+    "id": "democracy-now",
+    "name": "Democracy Now!",
+    "url": "https://www.democracynow.org/democracynow.rss",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=democracynow.org&sz=64",
+    "type": "rss",
+    "category": "far-left-news",
+    "enabled": true,
+    "reliabilityWeight": 0.72,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": -82,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/democracy-now",
+    "tags": [
+      "usa",
+      "world",
+      "far-left",
+      "progressive",
+      "independent-media"
+    ]
+  },
+  {
+    "id": "jacobin",
+    "name": "Jacobin",
+    "url": "https://jacobin.com/feed",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=jacobin.com&sz=64",
+    "type": "rss",
+    "category": "far-left-news",
+    "enabled": true,
+    "reliabilityWeight": 0.64,
+    "refreshIntervalMinutes": 60,
+    "spectrumScore": -90,
+    "spectrumConfidence": "high",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/jacobin-media-bias",
+    "tags": [
+      "usa",
+      "politics",
+      "far-left",
+      "socialist",
+      "analysis"
+    ]
+  },
+  {
+    "id": "common-dreams",
+    "name": "Common Dreams",
+    "url": "https://www.commondreams.org/rss.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=commondreams.org&sz=64",
+    "type": "rss",
+    "category": "far-left-news",
+    "enabled": true,
+    "reliabilityWeight": 0.66,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": -84,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/common-dreams-media-bias",
+    "tags": [
+      "usa",
+      "politics",
+      "far-left",
+      "progressive",
+      "nonprofit"
+    ]
+  },
+  {
+    "id": "fox-news-latest",
+    "name": "Fox News Latest",
+    "url": "https://moxie.foxnews.com/google-publisher/latest.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=foxnews.com&sz=64",
+    "type": "rss",
+    "category": "right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.7,
+    "refreshIntervalMinutes": 15,
+    "spectrumScore": 55,
+    "spectrumConfidence": "high",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/fox-news-media-bias",
+    "tags": [
+      "usa",
+      "national",
+      "right",
+      "conservative",
+      "breaking"
+    ]
+  },
+  {
+    "id": "new-york-post",
+    "name": "New York Post",
+    "url": "https://nypost.com/feed/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=nypost.com&sz=64",
+    "type": "rss",
+    "category": "right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.64,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": 62,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/new-york-post",
+    "tags": [
+      "usa",
+      "national",
+      "right",
+      "conservative",
+      "tabloid"
+    ]
+  },
+  {
+    "id": "washington-times",
+    "name": "The Washington Times",
+    "url": "https://www.washingtontimes.com/rss/headlines/news/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=washingtontimes.com&sz=64",
+    "type": "rss",
+    "category": "right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.68,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": 58,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/washington-times",
+    "tags": [
+      "usa",
+      "politics",
+      "right",
+      "conservative"
+    ]
+  },
+  {
+    "id": "washington-examiner",
+    "name": "Washington Examiner",
+    "url": "https://www.washingtonexaminer.com/feed/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=washingtonexaminer.com&sz=64",
+    "type": "rss",
+    "category": "right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.68,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": 54,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/washington-examiner",
+    "tags": [
+      "usa",
+      "politics",
+      "right",
+      "conservative"
+    ]
+  },
+  {
+    "id": "national-review",
+    "name": "National Review",
+    "url": "https://www.nationalreview.com/feed/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=nationalreview.com&sz=64",
+    "type": "rss",
+    "category": "right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.7,
+    "refreshIntervalMinutes": 60,
+    "spectrumScore": 72,
+    "spectrumConfidence": "high",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/national-review",
+    "tags": [
+      "usa",
+      "politics",
+      "right",
+      "conservative",
+      "analysis"
+    ]
+  },
+  {
+    "id": "daily-wire",
+    "name": "The Daily Wire",
+    "url": "https://www.dailywire.com/feeds/rss.xml",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=dailywire.com&sz=64",
+    "type": "rss",
+    "category": "right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.58,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": 80,
+    "spectrumConfidence": "high",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/daily-wire-media-bias",
+    "tags": [
+      "usa",
+      "politics",
+      "right",
+      "conservative",
+      "commentary"
+    ]
+  },
+  {
+    "id": "breitbart",
+    "name": "Breitbart",
+    "url": "https://feeds.feedburner.com/breitbart",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=breitbart.com&sz=64",
+    "type": "rss",
+    "category": "maga-far-right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.52,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": 90,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/breitbart",
+    "tags": [
+      "usa",
+      "politics",
+      "maga",
+      "far-right",
+      "populist-right"
+    ]
+  },
+  {
+    "id": "the-blaze",
+    "name": "TheBlaze",
+    "url": "https://www.theblaze.com/feeds/feed.rss",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=theblaze.com&sz=64",
+    "type": "rss",
+    "category": "maga-far-right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.54,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": 82,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/blaze-media-bias",
+    "tags": [
+      "usa",
+      "politics",
+      "maga",
+      "far-right",
+      "conservative"
+    ]
+  },
+  {
+    "id": "daily-caller",
+    "name": "The Daily Caller",
+    "url": "https://dailycaller.com/feed/",
+    "logoUrl": "https://www.google.com/s2/favicons?domain=dailycaller.com&sz=64",
+    "type": "rss",
+    "category": "maga-far-right-news",
+    "enabled": true,
+    "reliabilityWeight": 0.56,
+    "refreshIntervalMinutes": 30,
+    "spectrumScore": 76,
+    "spectrumConfidence": "medium",
+    "spectrumAsOf": "2026-06-08",
+    "spectrumReferenceUrl": "https://www.allsides.com/news-source/daily-caller",
+    "tags": [
+      "usa",
+      "politics",
+      "maga",
+      "far-right",
+      "conservative"
     ]
   },
   {
@@ -706,193 +974,6 @@
     ]
   },
   {
-    "id": "hacker-news",
-    "name": "Hacker News",
-    "url": "https://news.ycombinator.com/rss",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=news.ycombinator.com&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.65,
-    "refreshIntervalMinutes": 15,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "developer",
-      "startups",
-      "community"
-    ]
-  },
-  {
-    "id": "github-blog",
-    "name": "GitHub Blog",
-    "url": "https://github.blog/feed/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=github.blog&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.82,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "developer",
-      "github",
-      "software"
-    ]
-  },
-  {
-    "id": "stackoverflow-blog",
-    "name": "Stack Overflow Blog",
-    "url": "https://stackoverflow.blog/feed/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=stackoverflow.blog&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.76,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "developer",
-      "software"
-    ]
-  },
-  {
-    "id": "google-blog",
-    "name": "Google Blog",
-    "url": "https://blog.google/rss/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=blog.google&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.82,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "google",
-      "ai",
-      "platforms"
-    ]
-  },
-  {
-    "id": "microsoft-blog",
-    "name": "Microsoft Blog",
-    "url": "https://blogs.microsoft.com/feed/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=blogs.microsoft.com&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.82,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "microsoft",
-      "enterprise",
-      "ai"
-    ]
-  },
-  {
-    "id": "apple-newsroom",
-    "name": "Apple Newsroom",
-    "url": "https://www.apple.com/newsroom/rss-feed.rss",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=apple.com&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.82,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "apple",
-      "consumer-tech"
-    ]
-  },
-  {
-    "id": "cloudflare-blog",
-    "name": "Cloudflare Blog",
-    "url": "https://blog.cloudflare.com/rss/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=blog.cloudflare.com&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.82,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "cloudflare",
-      "security",
-      "infrastructure"
-    ]
-  },
-  {
-    "id": "mozilla-blog",
-    "name": "Mozilla Blog",
-    "url": "https://blog.mozilla.org/en/feed/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=blog.mozilla.org&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.76,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "mozilla",
-      "browser",
-      "open-web"
-    ]
-  },
-  {
-    "id": "vercel-blog",
-    "name": "Vercel Blog",
-    "url": "https://vercel.com/blog/rss.xml",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=vercel.com&sz=64",
-    "type": "rss",
-    "category": "technology",
-    "enabled": true,
-    "reliabilityWeight": 0.76,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "tech",
-      "vercel",
-      "web-development",
-      "frontend"
-    ]
-  },
-  {
     "id": "cnbc-business",
     "name": "CNBC Business",
     "url": "https://www.cnbc.com/id/10001147/device/rss/rss.html",
@@ -1012,27 +1093,6 @@
       "finance",
       "sec",
       "regulation",
-      "official"
-    ]
-  },
-  {
-    "id": "imf-news",
-    "name": "IMF News",
-    "url": "https://www.imf.org/en/News/RSS",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=imf.org&sz=64",
-    "type": "rss",
-    "category": "finance",
-    "enabled": false,
-    "reliabilityWeight": 0.9,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "finance",
-      "global-economy",
-      "imf",
       "official"
     ]
   },
@@ -1187,48 +1247,6 @@
     ]
   },
   {
-    "id": "reliefweb-disasters",
-    "name": "ReliefWeb Disasters",
-    "url": "https://reliefweb.int/disasters/rss.xml",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=reliefweb.int&sz=64",
-    "type": "rss",
-    "category": "humanitarian",
-    "enabled": false,
-    "reliabilityWeight": 0.86,
-    "refreshIntervalMinutes": 30,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "humanitarian",
-      "disaster",
-      "relief",
-      "crisis"
-    ]
-  },
-  {
-    "id": "reliefweb-headlines",
-    "name": "ReliefWeb Headlines",
-    "url": "https://reliefweb.int/updates/rss.xml",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=reliefweb.int&sz=64",
-    "type": "rss",
-    "category": "humanitarian",
-    "enabled": false,
-    "reliabilityWeight": 0.86,
-    "refreshIntervalMinutes": 30,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "humanitarian",
-      "relief",
-      "crisis",
-      "global"
-    ]
-  },
-  {
     "id": "who-news",
     "name": "WHO News",
     "url": "https://www.who.int/rss-feeds/news-english.xml",
@@ -1247,27 +1265,6 @@
       "outbreak",
       "disease",
       "who",
-      "official"
-    ]
-  },
-  {
-    "id": "cdc-newsroom",
-    "name": "CDC Newsroom",
-    "url": "https://tools.cdc.gov/api/v2/resources/media/403372.rss",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=cdc.gov&sz=64",
-    "type": "rss",
-    "category": "health-security",
-    "enabled": false,
-    "reliabilityWeight": 0.9,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "health",
-      "cdc",
-      "usa",
       "official"
     ]
   },
@@ -1306,27 +1303,6 @@
     "spectrumConfidence": "low",
     "spectrumAsOf": "2026-06-07",
     "spectrumReferenceUrl": "https://www.allsides.com/news-source/los-angeles-times-media-bias",
-    "tags": [
-      "usa",
-      "los-angeles",
-      "california",
-      "local"
-    ]
-  },
-  {
-    "id": "laist",
-    "name": "LAist",
-    "url": "https://laist.com/news/rss",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=laist.com&sz=64",
-    "type": "rss",
-    "category": "local-news",
-    "enabled": false,
-    "reliabilityWeight": 0.68,
-    "refreshIntervalMinutes": 30,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
     "tags": [
       "usa",
       "los-angeles",
@@ -1377,50 +1353,6 @@
     ]
   },
   {
-    "id": "crosscut",
-    "name": "Crosscut",
-    "url": "https://crosscut.com/rss.xml",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=crosscut.com&sz=64",
-    "type": "rss",
-    "category": "local-news",
-    "enabled": false,
-    "reliabilityWeight": 0.68,
-    "refreshIntervalMinutes": 60,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "usa",
-      "seattle",
-      "washington",
-      "local",
-      "politics"
-    ]
-  },
-  {
-    "id": "opb-news",
-    "name": "OPB News",
-    "url": "https://www.opb.org/news/rss/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=opb.org&sz=64",
-    "type": "rss",
-    "category": "portland-local",
-    "enabled": false,
-    "reliabilityWeight": 0.78,
-    "refreshIntervalMinutes": 30,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "oregon",
-      "portland",
-      "pnw",
-      "local",
-      "public-media"
-    ]
-  },
-  {
     "id": "oregonlive-news",
     "name": "OregonLive News",
     "url": "https://www.oregonlive.com/arc/outboundfeeds/rss/?outputType=xml",
@@ -1438,27 +1370,6 @@
       "oregon",
       "portland",
       "local"
-    ]
-  },
-  {
-    "id": "willamette-week-news",
-    "name": "Willamette Week News",
-    "url": "https://www.wweek.com/feeds/news/",
-    "logoUrl": "https://www.google.com/s2/favicons?domain=wweek.com&sz=64",
-    "type": "rss",
-    "category": "portland-local",
-    "enabled": false,
-    "reliabilityWeight": 0.68,
-    "refreshIntervalMinutes": 30,
-    "spectrumScore": null,
-    "spectrumConfidence": "unrated",
-    "spectrumAsOf": "2026-06-07",
-    "spectrumReferenceUrl": null,
-    "tags": [
-      "oregon",
-      "portland",
-      "local",
-      "alternative-weekly"
     ]
   },
   {

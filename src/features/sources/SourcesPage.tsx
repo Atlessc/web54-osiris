@@ -342,6 +342,19 @@ function SourceCard({ source }: { source: SourceHealthItem }) {
         />
       </div>
 
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Source Lane" value={source.sourceLane} />
+        <Metric label="Map Eligible" value={source.mapEligible ? "yes" : "no"} />
+        <Metric
+          label="Signal Eligible"
+          value={source.signalEligible ? "yes" : "no"}
+        />
+        <Metric
+          label="Freshness Window"
+          value={source.maxAgeHours === null ? "unlimited" : `${source.maxAgeHours}h`}
+        />
+      </div>
+
       <div className="mt-4 grid gap-3 text-xs leading-5 text-[var(--text-secondary)] sm:grid-cols-2">
         <p>
           <span className="text-[var(--text-muted)]">Last success:</span>{" "}

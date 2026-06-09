@@ -1091,6 +1091,24 @@ export function SignalsPage() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
+        {data?.stale || data?.metadata?.cache?.mode === "stale-cache" ? (
+          <section className="mb-5 rounded-xl border border-amber-400/30 bg-amber-400/[0.07] px-4 py-3">
+            <div className="flex gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <div>
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                  Stale derived data
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                  {data.warning ||
+                    data.metadata?.cache?.warning ||
+                    "Live collection is unavailable. Showing the last known cached signals."}
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         <section className="grid overflow-hidden rounded-xl border border-[var(--border-primary)] bg-white/[0.018] sm:grid-cols-2 lg:grid-cols-5">
           <SummaryMetric icon={Activity} label="Active" value={summary.active} tone="text-red-300" />
           <SummaryMetric icon={ArrowUpRight} label="Escalating" value={summary.escalating} tone="text-orange-300" />

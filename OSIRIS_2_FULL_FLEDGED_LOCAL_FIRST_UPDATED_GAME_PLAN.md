@@ -1703,18 +1703,58 @@ Let the user control detection vocabulary.
 
 ### Tasks
 
-- [ ] Make keyword extraction read `osiris-data/keyword-packs.json`
-- [ ] Support default keyword packs
-- [ ] Support custom keyword packs
-- [ ] Support disabled keyword packs if desired
-- [ ] Add keyword manager UI
-- [ ] Add keyword testing utility
+- [x] Make keyword extraction read `osiris-data/keyword-packs.json`
+- [x] Support default keyword packs
+- [x] Support custom keyword packs
+- [x] Decide whether disabled keyword packs are needed; preserve the current JSON shape for now
+- [x] Add keyword manager UI
+- [x] Add keyword testing utility
 
 ### Acceptance Criteria
 
-- [ ] User-added keywords affect event detection
-- [ ] Removed keywords stop matching
-- [ ] Keyword packs can be edited without touching code
+- [x] User-added keywords affect event detection
+- [x] Removed keywords stop matching
+- [x] Keyword packs can be edited without touching code
+
+---
+
+## Phase 9.5: Harden Deterministic Event Promotion
+
+### Goal
+
+Prevent context articles, technical reporting, structured observations, stale
+records, and ambiguous text matches from becoming global map incidents or
+signals.
+
+### Tasks
+
+- [x] Add deterministic source lanes
+- [x] Add JSON-backed per-source promotion policy overrides
+- [x] Route cyber feeds away from the global incident map and signals
+- [x] Route weather and natural-hazard feeds to structured observation lanes
+- [x] Route technology, business, finance, and good-news feeds to context
+- [x] Keep analysis, opinion, and source spectrum as evidence context instead of promotion vetoes
+- [x] Add source-specific freshness windows
+- [x] Ignore unsafe short free-text location aliases
+- [x] Require contextual matches for ambiguous keywords
+- [x] Require event action and location to co-occur in the same sentence, clause, or headline-summary evidence window
+- [x] Reject roundup, non-event, and historical-reference articles
+- [x] Deduplicate accepted URLs
+- [x] Replace universal conflict typing with deterministic event types
+- [x] Reduce same-family keyword severity inflation
+- [x] Require independent-source corroboration for derived signals
+- [x] Add twelve-hour event-family buckets and event facts to signal clustering
+- [x] Expose promotion lanes and rejection reasons in source diagnostics
+
+### Acceptance Criteria
+
+- [x] Technology tutorials and marketing articles do not become map incidents
+- [x] Cyber and CVE reporting remains collected but does not clutter global signals
+- [x] Weather RSS forecasts do not become generic conflict events
+- [x] Unsafe aliases such as OR, US, CA, LA, SF, and UK do not free-text match
+- [x] Event records expose the sentence and gates used for promotion
+- [x] Source settings can override promotion behavior without code changes
+- [x] No existing local JSON configuration file is removed or reshaped
 
 ---
 
@@ -1726,21 +1766,21 @@ Keep OSIRIS useful even if sources fail or network is unavailable.
 
 ### Tasks
 
-- [ ] Create cache folder
-- [ ] Cache source items
-- [ ] Cache normalized events
-- [ ] Cache generated signals
-- [ ] Cache source health
-- [ ] Add stale data warning
-- [ ] Add clear cache tool
-- [ ] Add cache metadata
+- [x] Create cache folder
+- [x] Cache source items
+- [x] Cache normalized events
+- [x] Cache generated signals
+- [x] Cache source health
+- [x] Add stale data warning
+- [x] Add clear cache tool
+- [x] Add cache metadata
 
 ### Acceptance Criteria
 
-- [ ] App can show last known data
-- [ ] App warns when data is stale
-- [ ] Source failures do not blank the UI
-- [ ] Cache can be cleared from developer settings
+- [x] App can show last known data
+- [x] App warns when data is stale
+- [x] Source failures do not blank the UI
+- [x] Cache can be cleared from developer settings
 
 ---
 

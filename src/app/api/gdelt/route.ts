@@ -1,5 +1,21 @@
 import { NextResponse } from "next/server";
 
+import {
+  readLocalCache,
+  writeLocalCache,
+} from "@/lib/local-cache/cacheService";
+import {
+  getSourceLaneRejectionReason,
+  resolveSourcePromotionPolicy,
+} from "@/lib/event-pipeline/sourcePolicy";
+import {
+  containsHistoricalYear,
+  getContextualKeywordMatches,
+  getWordRegex,
+  hasEventAction,
+  isNonEventTitle,
+  isRoundupTitle,
+} from "@/lib/event-pipeline/keywordMatching";
 import { readLocalConfig } from "@/lib/local-config/configService";
 import { getSourceBiasProfile } from "@/lib/source-bias";
 import {
@@ -9,11 +25,13 @@ import {
 import type {
   LocationRegistryConfig,
   RssFeedConfig,
+  SourcePromotionPolicy,
 } from "@/types/local-config";
 import type { SourceIngestionDiagnostics } from "@/types/source-health";
 import type { SourceBiasProfile } from "@/types/source-bias";
 
 export const dynamic = "force-dynamic";
+const DERIVED_CACHE_TTL_MINUTES = 30;
 
 /**
  * OSIRIS — RSS OSINT Incident Mapper
@@ -31,6 +49,14 @@ type GeoPrecision = "city" | "country" | "region" | "actor_proxy";
 type SeverityLevel = "low" | "watch" | "elevated" | "high" | "critical";
 
 type ConfidenceLevel = "low" | "moderate" | "high";
+type EventType =
+  | "conflict"
+  | "civil_unrest"
+  | "natural_hazard"
+  | "political"
+  | "infrastructure"
+  | "security"
+  | "humanitarian";
 
 interface GeoEntry {
   coords: [number, number]; // [lng, lat]
@@ -58,6 +84,7 @@ type KeywordWeights = Record<string, KeywordEntry>;
 interface MatchedLocation {
   key: string;
   label: string;
+  matchedTerm: string;
   coords: [number, number];
   precision: GeoPrecision;
   confidence: number;
@@ -72,11 +99,12 @@ interface OsintEvent {
   description: string;
   url: string;
   html: string;
-  type: "conflict";
+  type: EventType;
   sourceId: string;
   source: string;
   sourceCategory: string;
   sourceTags: string[];
+  sourceLane: SourcePromotionPolicy["lane"];
   sourceReliability: number;
   sourceBias: SourceBiasProfile;
   sourceRefreshIntervalMinutes: number;
@@ -97,12 +125,22 @@ interface OsintEvent {
   inferredMeaning: string[];
   uncertainty: string[];
   watchNext: string[];
+  promotionDecision: {
+    promoted: true;
+    mapEligible: boolean;
+    signalEligible: boolean;
+    matchedSentence: string;
+    gatesPassed: string[];
+  };
   metadata: {
     mapper: "rss_keyword_geo_mapper";
     sourceType: "rss";
     sourceId: string;
     sourceCategory: string;
     sourceTags: string[];
+    sourceLane: SourcePromotionPolicy["lane"];
+    mapEligible: boolean;
+    signalEligible: boolean;
     exactLocationVerified: false;
     fullGdeltEvent: false;
   };
@@ -747,29 +785,18 @@ function normalizeForSearch(value: string): string {
   return stripHtml(value).toLowerCase();
 }
 
-function getWordRegex(term: string): RegExp {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  /**
-   * This avoids matching tiny terms inside bigger words.
-   * Example: "war" should not match "hardware".
-   */
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i");
+function isSafeFreeTextLocationTerm(term: string) {
+  const normalized = term.trim().toLowerCase().replace(/\./g, "");
+  if (normalized.length <= 2) return false;
+  if (["usa"].includes(normalized)) return true;
+  return normalized.length >= 3;
 }
 
 function getMatchedKeywords(
   text: string,
   keywordWeights: KeywordWeights,
 ): string[] {
-  const matched: string[] = [];
-
-  for (const keyword of Object.keys(keywordWeights)) {
-    if (getWordRegex(keyword).test(text)) {
-      matched.push(keyword);
-    }
-  }
-
-  return matched;
+  return getContextualKeywordMatches(text, Object.keys(keywordWeights));
 }
 
 function getKeywordFamilies(
@@ -795,10 +822,13 @@ function getMatchedLocation(
     const terms = [key, ...(entry.aliases || [])];
 
     for (const term of terms) {
+      if (!isSafeFreeTextLocationTerm(term)) continue;
+
       if (getWordRegex(term).test(text)) {
         candidates.push({
           key,
           label: entry.label,
+          matchedTerm: term,
           coords: entry.coords,
           precision: entry.precision,
           confidence: entry.confidence,
@@ -832,11 +862,31 @@ function getSeverityScore(
   articleAgeMinutes: number | null,
   keywordWeights: KeywordWeights,
 ): number {
-  const rawKeywordScore = matchedKeywords.reduce((total, keyword) => {
-    return total + (keywordWeights[keyword]?.weight || 0);
-  }, 0);
+  const weightsByFamily = new Map<string, number[]>();
 
-  const keywordScore = Math.min(rawKeywordScore, 85);
+  for (const keyword of matchedKeywords) {
+    const entry = keywordWeights[keyword];
+    if (!entry) continue;
+
+    const familyWeights = weightsByFamily.get(entry.family) || [];
+    familyWeights.push(entry.weight);
+    weightsByFamily.set(entry.family, familyWeights);
+  }
+
+  const rawKeywordScore = Array.from(weightsByFamily.values()).reduce(
+    (total, weights) => {
+      const sorted = weights.sort((a, b) => b - a);
+      return total + Math.min(42, (sorted[0] || 0) + (sorted[1] || 0) * 0.35);
+    },
+    0,
+  );
+
+  const hasHighImpactTerm = matchedKeywords.some((keyword) =>
+    /\b(airstrike|missile|bomb|explosion|killed|dead|casualties|invasion|massacre|earthquake|tsunami|hurricane|tornado|wildfire)\b/i.test(
+      keyword,
+    ),
+  );
+  const keywordScore = Math.min(rawKeywordScore, hasHighImpactTerm ? 85 : 64);
 
   let recencyBoost = 0;
 
@@ -863,6 +913,7 @@ function getConfidenceScore(params: {
   matchedKeywords: string[];
   publishedAt: string | null;
   geoPrecision: GeoPrecision;
+  articleAgeMinutes: number | null;
 }): number {
   const {
     sourceReliability,
@@ -870,6 +921,7 @@ function getConfidenceScore(params: {
     matchedKeywords,
     publishedAt,
     geoPrecision,
+    articleAgeMinutes,
   } = params;
 
   const sourceScore = sourceReliability * 35;
@@ -881,6 +933,8 @@ function getConfidenceScore(params: {
 
   if (geoPrecision === "country") precisionPenalty = 8;
   if (geoPrecision === "actor_proxy") precisionPenalty = 15;
+  if (articleAgeMinutes === null) precisionPenalty += 8;
+  else if (articleAgeMinutes > 24 * 60) precisionPenalty += 5;
 
   return Math.max(
     0,
@@ -1078,7 +1132,14 @@ function buildEventHtml(event: {
 
 function getClusterKey(event: OsintEvent): string {
   const primaryFamily = event.keywordFamilies[0] || "general";
-  return `${event.matchedLocation.key}:${primaryFamily}`;
+  const date = new Date(event.publishedAt || event.fetchedAt);
+  const twelveHourBucket = Number.isNaN(date.getTime())
+    ? (event.publishedAt || event.fetchedAt).slice(0, 10)
+    : `${date.toISOString().slice(0, 10)}-${String(
+        Math.floor(date.getUTCHours() / 12) * 12,
+      ).padStart(2, "0")}`;
+
+  return `${event.matchedLocation.key}:${event.type}:${primaryFamily}:${twelveHourBucket}`;
 }
 
 function average(values: number[]): number {
@@ -1112,25 +1173,139 @@ function getClusterConfidenceLevel(events: OsintEvent[]): ConfidenceLevel {
   return getConfidenceLevel(Math.min(100, avgConfidence + corroborationBoost));
 }
 
+function getEventType(keywordFamilies: string[], matchedSentence: string): EventType {
+  if (
+    /\b(earthquake|aftershock|tsunami|flood\w*|wildfire|hurricane|tornado|landslide)\b/i.test(
+      matchedSentence,
+    )
+  ) {
+    return "natural_hazard";
+  }
+  if (
+    /\b(protests?|riots?|unrest|curfew|crackdown|demonstrat\w*)\b/i.test(
+      matchedSentence,
+    )
+  ) {
+    return "civil_unrest";
+  }
+  if (
+    /\b(blackout|outages?|closures?|bridge collapse|rail disruption|port closure|airport closure)\b/i.test(
+      matchedSentence,
+    )
+  ) {
+    return "infrastructure";
+  }
+  if (
+    /\b(airstrikes?|missiles?|rockets?|shelling|bomb\w*|invasion|troops?|military|army|navy|war|ceasefire)\b/i.test(
+      matchedSentence,
+    ) &&
+    (keywordFamilies.includes("kinetic") ||
+      keywordFamilies.includes("military") ||
+      keywordFamilies.includes("casualty"))
+  ) {
+    return "conflict";
+  }
+  if (keywordFamilies.includes("civil_unrest")) return "civil_unrest";
+  if (keywordFamilies.includes("infrastructure")) return "infrastructure";
+  if (keywordFamilies.includes("political")) return "political";
+  return "security";
+}
+
 function getPrimarySignalEvent(events: OsintEvent[]) {
   return [...events].sort((a, b) => {
-    const aRated = typeof a.sourceBias.score === "number";
-    const bRated = typeof b.sourceBias.score === "number";
+    const severityRank: Record<SeverityLevel, number> = {
+      low: 1,
+      watch: 2,
+      elevated: 3,
+      high: 4,
+      critical: 5,
+    };
+    const severityDifference =
+      severityRank[b.severityLevel] - severityRank[a.severityLevel];
+    if (severityDifference !== 0) return severityDifference;
 
-    if (aRated !== bRated) return aRated ? -1 : 1;
+    const headlineQualityDifference =
+      Number(a.title.trim().endsWith("?") || isRoundupTitle(a.title)) -
+      Number(b.title.trim().endsWith("?") || isRoundupTitle(b.title));
+    if (headlineQualityDifference !== 0) return headlineQualityDifference;
 
-    if (aRated && bRated) {
-      const centerDifference =
-        Math.abs(a.sourceBias.score as number) -
-        Math.abs(b.sourceBias.score as number);
-      if (centerDifference !== 0) return centerDifference;
-    }
+    const confidenceDifference = b.confidenceScore - a.confidenceScore;
+    if (confidenceDifference !== 0) return confidenceDifference;
 
     const reliabilityDifference = b.sourceReliability - a.sourceReliability;
     if (reliabilityDifference !== 0) return reliabilityDifference;
 
     return (b.publishedAt || "").localeCompare(a.publishedAt || "");
   })[0];
+}
+
+function splitCandidateSentences(title: string, description: string) {
+  const descriptionSentences = description
+    .split(/(?<=[.!?])\s+|\s+[|•]\s+|\n+/)
+    .flatMap((sentence) =>
+      sentence.split(
+        /;\s+|,\s+(?=(?:a|an|the|authorities|officials|police|firefighters|military|government|president|at least|more than)\b)/i,
+      ),
+    )
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  const summaryContext = descriptionSentences.slice(0, 2).join(" ");
+
+  return Array.from(
+    new Set([
+      title,
+      ...descriptionSentences,
+      summaryContext,
+      `${title} ${summaryContext}`.trim(),
+    ]),
+  )
+    .map((sentence) => normalizeForSearch(sentence))
+    .filter(Boolean);
+}
+
+function getEventSentenceMatch(
+  title: string,
+  description: string,
+  keywordWeights: KeywordWeights,
+  geoDict: Record<string, GeoEntry>,
+) {
+  const precisionRank: Record<GeoPrecision, number> = {
+    city: 4,
+    region: 3,
+    country: 2,
+    actor_proxy: 1,
+  };
+
+  return splitCandidateSentences(title, description)
+    .map((sentence) => ({
+      sentence,
+      matchedKeywords: getMatchedKeywords(sentence, keywordWeights),
+      matchedLocation: getMatchedLocation(sentence, geoDict),
+      hasEventAction: hasEventAction(sentence),
+    }))
+    .filter(
+      (
+        match,
+      ): match is {
+        sentence: string;
+        matchedKeywords: string[];
+        matchedLocation: MatchedLocation;
+        hasEventAction: boolean;
+      } => Boolean(match.matchedKeywords.length && match.matchedLocation),
+    )
+    .sort((a, b) => {
+      const actionDifference =
+        Number(b.hasEventAction) - Number(a.hasEventAction);
+      if (actionDifference !== 0) return actionDifference;
+
+      const precisionDifference =
+        precisionRank[b.matchedLocation.precision] -
+        precisionRank[a.matchedLocation.precision];
+      if (precisionDifference !== 0) return precisionDifference;
+
+      return b.matchedKeywords.length - a.matchedKeywords.length;
+    })[0];
 }
 
 function buildDerivedSignals(
@@ -1150,12 +1325,15 @@ function buildDerivedSignals(
   const derivedSignals: DerivedSignal[] = [];
 
   for (const [clusterKey, clusterEvents] of clusters.entries()) {
+    const uniqueSources = new Set(clusterEvents.map((event) => event.sourceId));
+    const hasOfficialHighSeverityEvent = clusterEvents.some(
+      (event) =>
+        event.sourceTags.includes("official") &&
+        (event.severityLevel === "high" ||
+          event.severityLevel === "critical"),
+    );
     const shouldKeepCluster =
-      clusterEvents.length >= 2 ||
-      clusterEvents.some(
-        (event) =>
-          event.severityLevel === "high" || event.severityLevel === "critical",
-      );
+      uniqueSources.size >= 2 || hasOfficialHighSeverityEvent;
 
     if (!shouldKeepCluster) continue;
 
@@ -1193,9 +1371,7 @@ function buildDerivedSignals(
         ? `${sources.length} sources (${sources.join(", ")})`
         : `${sources[0]}`;
     const headlineSelectionReason =
-      typeof primaryEvent.sourceBias.score === "number"
-        ? "The closest-to-center rated supporting headline"
-        : "No supporting source has a current spectrum rating, so the highest-reliability supporting headline";
+      "The strongest severity and confidence supporting headline";
 
     derivedSignals.push({
       id: `signal-${clusterKey.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${fetchedAt.slice(
@@ -1220,10 +1396,11 @@ function buildDerivedSignals(
       averageSeverityScore,
       averageConfidenceScore,
       newestPublishedAt,
-      explanation: `${clusterEvents.length} articles from ${sourcePhrase} converged around ${first.matchedLocation.label} in the current collection window. ${headlineSelectionReason} is from ${primaryEvent.source}: "${primaryEvent.title}".${primaryEvent.description ? ` Feed excerpt: ${primaryEvent.description.slice(0, 320)}` : ""} Keyword overlap created this watch condition, but does not by itself confirm that every article describes one event.`,
+      explanation: `${clusterEvents.length} promoted event records from ${sourcePhrase} independently converged on ${first.type.replace("_", " ")} activity near ${first.matchedLocation.label} within the same twelve-hour collection bucket. ${headlineSelectionReason} is from ${primaryEvent.source}: "${primaryEvent.title}".${primaryEvent.description ? ` Feed excerpt: ${primaryEvent.description.slice(0, 320)}` : ""} The shared event type, keyword family, validated location, and time window created this watch condition. Source spectrum is retained for context but does not control promotion or headline selection.`,
       knownFacts: [
-        `${clusterEvents.length} feed items matched the same location/family cluster.`,
+        `${clusterEvents.length} promoted records matched the same location, event type, keyword family, and twelve-hour time bucket.`,
         `Sources involved: ${sources.join(", ")}`,
+        `Event type: ${first.type.replace("_", " ")}`,
         `Matched keyword families: ${keywordFamilies.join(", ")}`,
         newestPublishedAt
           ? `Newest published item: ${newestPublishedAt}`
@@ -1234,7 +1411,7 @@ function buildDerivedSignals(
         "This may deserve analyst review, especially if aviation, maritime, weather, GPS, market, or infrastructure layers also show movement.",
       ],
       uncertainty: [
-        "Cluster is based on lightweight RSS parsing and keyword matching.",
+        "Cluster is based on deterministic RSS sentence/clause extraction and contextual keyword rules.",
         "Multiple articles may describe the same underlying event.",
         "Location may be approximate depending on the matched place precision.",
       ],
@@ -1302,11 +1479,13 @@ export async function GET() {
 
     const allEvents: OsintEvent[] = [];
     const sourceDiagnostics: SourceIngestionDiagnostics[] = [];
+    const acceptedUrls = new Set<string>();
     let eventId = 0;
     const pullResults = await pullRssSources(rssFeeds, { concurrency: 6 });
 
     for (const pullResult of pullResults) {
       const feed = pullResult.feed;
+      const sourcePolicy = resolveSourcePromotionPolicy(feed);
       const diagnostics = createSourceDiagnostics(feed.id, fetchedAt);
       sourceDiagnostics.push(diagnostics);
 
@@ -1341,18 +1520,82 @@ export async function GET() {
           fetchedAtDate,
         );
 
-        const textToSearch = normalizeForSearch(`${title} ${description}`);
-        const matchedKeywords = getMatchedKeywords(textToSearch, keywordWeights);
-
-        if (!matchedKeywords.length) {
-          recordRejection(diagnostics, "no_keyword_match");
+        if (isRoundupTitle(title)) {
+          recordRejection(diagnostics, "multi_event_roundup");
           continue;
         }
 
-        const matchedLocation = getMatchedLocation(textToSearch, geoDict);
+        if (isNonEventTitle(title)) {
+          recordRejection(diagnostics, "non_event_article");
+          continue;
+        }
 
-        if (!matchedLocation) {
-          recordRejection(diagnostics, "no_location_match");
+        if (!sourcePolicy.mapEligible && !sourcePolicy.signalEligible) {
+          recordRejection(
+            diagnostics,
+            getSourceLaneRejectionReason(sourcePolicy.lane),
+          );
+          continue;
+        }
+
+        if (
+          sourcePolicy.maxAgeHours !== null &&
+          articleAgeMinutes !== null &&
+          articleAgeMinutes > sourcePolicy.maxAgeHours * 60
+        ) {
+          recordRejection(diagnostics, "outside_freshness_window");
+          continue;
+        }
+
+        if (acceptedUrls.has(url)) {
+          recordRejection(diagnostics, "duplicate_url");
+          continue;
+        }
+
+        const eventSentenceMatch = getEventSentenceMatch(
+          title,
+          description,
+          keywordWeights,
+          geoDict,
+        );
+
+        if (!eventSentenceMatch) {
+          const textToSearch = normalizeForSearch(`${title} ${description}`);
+          const fullTextKeywords = getMatchedKeywords(
+            textToSearch,
+            keywordWeights,
+          );
+
+          if (!fullTextKeywords.length) {
+            recordRejection(diagnostics, "no_keyword_match");
+          } else if (!getMatchedLocation(textToSearch, geoDict)) {
+            recordRejection(diagnostics, "no_location_match");
+          } else {
+            recordRejection(diagnostics, "no_event_location_cooccurrence");
+          }
+          continue;
+        }
+
+        if (sourcePolicy.requireEventAction && !eventSentenceMatch.hasEventAction) {
+          recordRejection(diagnostics, "no_event_action");
+          continue;
+        }
+
+        if (
+          containsHistoricalYear(
+            eventSentenceMatch.sentence,
+            fetchedAtDate.getUTCFullYear(),
+          )
+        ) {
+          recordRejection(diagnostics, "historical_reference");
+          continue;
+        }
+
+        const matchedKeywords = eventSentenceMatch.matchedKeywords;
+        const matchedLocation = eventSentenceMatch.matchedLocation;
+
+        if (!matchedKeywords.length) {
+          recordRejection(diagnostics, "no_keyword_match");
           continue;
         }
 
@@ -1372,7 +1615,7 @@ export async function GET() {
          * Example: an article matching only "police" and "France" should not
          * automatically become an OSIRIS incident unless other strong terms exist.
          */
-        if (severityScore < 18) {
+        if (severityScore < 17) {
           recordRejection(diagnostics, "below_severity_threshold");
           continue;
         }
@@ -1383,6 +1626,7 @@ export async function GET() {
           matchedKeywords,
           publishedAt,
           geoPrecision: matchedLocation.precision,
+          articleAgeMinutes,
         });
 
         const confidenceLevel = getConfidenceLevel(confidenceScore);
@@ -1415,6 +1659,10 @@ export async function GET() {
           publishedAt,
         });
         const watchNext = buildWatchNext(keywordFamilies);
+        const eventType = getEventType(
+          keywordFamilies,
+          eventSentenceMatch.sentence,
+        );
         const id = `osint-${feed.id}-${eventId++}`;
         const eventForHtml = {
           title,
@@ -1428,6 +1676,7 @@ export async function GET() {
         };
 
         diagnostics.acceptedItems += 1;
+        acceptedUrls.add(url);
 
         allEvents.push({
           id,
@@ -1438,11 +1687,12 @@ export async function GET() {
           description,
           url,
           html: buildEventHtml(eventForHtml),
-          type: "conflict",
+          type: eventType,
           sourceId: feed.id,
           source: feed.name,
           sourceCategory: feed.category,
           sourceTags: feed.tags,
+          sourceLane: sourcePolicy.lane,
           sourceReliability: feed.reliabilityWeight,
           sourceBias,
           sourceRefreshIntervalMinutes: feed.refreshIntervalMinutes,
@@ -1463,12 +1713,30 @@ export async function GET() {
           inferredMeaning,
           uncertainty,
           watchNext,
+          promotionDecision: {
+            promoted: true,
+            mapEligible: sourcePolicy.mapEligible,
+            signalEligible: sourcePolicy.signalEligible,
+            matchedSentence: eventSentenceMatch.sentence,
+            gatesPassed: [
+              "source_lane_eligible",
+              "within_freshness_window",
+              "contextual_keyword_match",
+              "safe_location_match",
+              "event_location_sentence_cooccurrence",
+              ...(sourcePolicy.requireEventAction ? ["event_action_match"] : []),
+              "severity_threshold",
+            ],
+          },
           metadata: {
             mapper: "rss_keyword_geo_mapper",
             sourceType: "rss",
             sourceId: feed.id,
             sourceCategory: feed.category,
             sourceTags: feed.tags,
+            sourceLane: sourcePolicy.lane,
+            mapEligible: sourcePolicy.mapEligible,
+            signalEligible: sourcePolicy.signalEligible,
             exactLocationVerified: false,
             fullGdeltEvent: false,
           },
@@ -1476,8 +1744,33 @@ export async function GET() {
       }
     }
 
-    const derivedSignals = buildDerivedSignals(allEvents, fetchedAt);
+    const signalEligibleEvents = allEvents.filter(
+      (event) => event.metadata.signalEligible,
+    );
+    const derivedSignals = buildDerivedSignals(signalEligibleEvents, fetchedAt);
     await writeSourceIngestionDiagnostics(sourceDiagnostics);
+
+    let cacheWarning: string | null = null;
+    let normalizedEventsCache:
+      | Awaited<ReturnType<typeof writeLocalCache<OsintEvent[]>>>
+      | null = null;
+    try {
+      [normalizedEventsCache] = await Promise.all([
+        writeLocalCache("normalized-events", allEvents, {
+          ttlMinutes: DERIVED_CACHE_TTL_MINUTES,
+          source: "rss-osint-mapper",
+        }),
+        writeLocalCache("generated-signals", derivedSignals, {
+          ttlMinutes: DERIVED_CACHE_TTL_MINUTES,
+          source: "rss-osint-mapper",
+        }),
+      ]);
+    } catch (cacheError) {
+      cacheWarning = `Live data loaded, but derived cache write failed: ${
+        cacheError instanceof Error ? cacheError.message : "unknown cache error"
+      }`;
+      console.warn(`[OSIRIS] ${cacheWarning}`);
+    }
 
     return NextResponse.json(
       {
@@ -1488,18 +1781,42 @@ export async function GET() {
         timestamp: fetchedAt,
         source: "RSS_OSINT_MAPPING",
         sourceNote:
-          "This route uses free RSS/Atom feeds with lightweight keyword/location mapping. It is not full GDELT event intelligence.",
+          "This route uses deterministic source lanes, freshness gates, contextual keyword matching, and sentence-level event/location promotion. It is not full GDELT event intelligence.",
         metadata: {
           fullGdeltEvent: false,
           mapper: "rss_keyword_geo_mapper",
           feedCount: rssFeeds.length,
           keywordCount: Object.keys(keywordWeights).length,
           locationCount: Object.keys(geoDict).length,
+          promotedEventCount: allEvents.length,
+          mapEligibleEventCount: allEvents.filter(
+            (event) => event.metadata.mapEligible,
+          ).length,
+          signalEligibleEventCount: signalEligibleEvents.length,
+          sourceLaneCounts: rssFeeds.reduce<Record<string, number>>(
+            (counts, feed) => {
+              const lane = resolveSourcePromotionPolicy(feed).lane;
+              counts[lane] = (counts[lane] ?? 0) + 1;
+              return counts;
+            },
+            {},
+          ),
           cacheHitCount: pullResults.filter((result) => result.fromCache).length,
           staleCacheCount: pullResults.filter((result) => result.isStale).length,
           failedFeedCount: pullResults.filter(
             (result) => result.pullStatus === "error",
           ).length,
+          cache: {
+            mode: "live",
+            updatedAt: normalizedEventsCache?.updatedAt ?? fetchedAt,
+            expiresAt:
+              normalizedEventsCache?.expiresAt ??
+              new Date(
+                fetchedAtDate.getTime() + DERIVED_CACHE_TTL_MINUTES * 60_000,
+              ).toISOString(),
+            isStale: false,
+            warning: cacheWarning,
+          },
           feeds: pullResults.map((result) => ({
             id: result.feed.id,
             source: result.feed.name,
@@ -1508,6 +1825,7 @@ export async function GET() {
             tags: result.feed.tags,
             reliability: result.feed.reliabilityWeight,
             refreshIntervalMinutes: result.feed.refreshIntervalMinutes,
+            promotionPolicy: resolveSourcePromotionPolicy(result.feed),
             pullStatus: result.pullStatus,
             itemCount: result.itemCount,
             lastSuccessAt: result.lastSuccessAt,
@@ -1516,10 +1834,11 @@ export async function GET() {
           })),
           sourceDiagnostics,
           limitations: [
-            "Keyword matching can produce false positives.",
-            "Location matching is dictionary-based and may be approximate.",
+            "Promotion is deterministic and conservative, but contextual keyword matching can still produce false positives.",
+            "Location matching is dictionary-based; unsafe short aliases are ignored and accepted locations may still be approximate.",
             "Country-level and actor-proxy matches are not exact event coordinates.",
-            "Multiple articles may refer to the same underlying event.",
+            "Technology, cyber, weather, natural-hazard, business, finance, and good-news lanes are excluded from the global incident mapper by default.",
+            "Source spectrum and editorial perspective are retained as evidence context and do not control event promotion.",
           ],
         },
       },
@@ -1532,6 +1851,58 @@ export async function GET() {
   } catch (error) {
     console.error("RSS OSINT mapper error:", error);
 
+    const message =
+      error instanceof Error ? error.message : "Failed to fetch RSS OSINT data";
+    const [cachedEvents, cachedSignals] = await Promise.all([
+      readLocalCache<OsintEvent[]>("normalized-events"),
+      readLocalCache<DerivedSignal[]>("generated-signals"),
+    ]);
+
+    if (cachedEvents || cachedSignals) {
+      const events = cachedEvents?.entry.data ?? [];
+      const derivedSignals = cachedSignals?.entry.data ?? [];
+      const cacheTimestamp =
+        cachedEvents?.entry.updatedAt ??
+        cachedSignals?.entry.updatedAt ??
+        fetchedAt;
+      const cacheExpiresAt =
+        cachedEvents?.entry.expiresAt ??
+        cachedSignals?.entry.expiresAt ??
+        fetchedAt;
+      const warning = `Live RSS collection failed. Showing last known derived data: ${message}`;
+
+      return NextResponse.json({
+        events,
+        derivedSignals,
+        total: events.length,
+        derivedTotal: derivedSignals.length,
+        timestamp: cacheTimestamp,
+        source: "RSS_OSINT_MAPPING_CACHE",
+        stale: true,
+        warning,
+        sourceNote: warning,
+        metadata: {
+          fullGdeltEvent: false,
+          mapper: "rss_keyword_geo_mapper",
+          cacheHitCount: 0,
+          staleCacheCount: 1,
+          failedFeedCount: 0,
+          cache: {
+            mode: "stale-cache",
+            updatedAt: cacheTimestamp,
+            expiresAt: cacheExpiresAt,
+            isStale: true,
+            warning,
+          },
+          limitations: [
+            "Live collection failed; this response contains last known derived data.",
+            "Keyword matching can produce false positives.",
+            "Location matching is dictionary-based and may be approximate.",
+          ],
+        },
+      });
+    }
+
     return NextResponse.json(
       {
         events: [],
@@ -1540,7 +1911,7 @@ export async function GET() {
         derivedTotal: 0,
         timestamp: fetchedAt,
         source: "RSS_OSINT_MAPPING",
-        error: "Failed to fetch RSS OSINT data",
+        error: message,
       },
       { status: 500 },
     );

@@ -21,7 +21,15 @@ import {
   testRssSource,
   updateLocalConfig,
 } from "@/lib/local-config/client";
-import type { RssFeedConfig, RssFeedsConfig } from "@/types/local-config";
+import {
+  resolveSourcePromotionPolicy,
+  SOURCE_LANES,
+} from "@/lib/event-pipeline/sourcePolicy";
+import type {
+  RssFeedConfig,
+  RssFeedsConfig,
+  SourcePromotionPolicy,
+} from "@/types/local-config";
 import type { SourceHealthItem } from "@/types/source-health";
 
 const EMPTY_FEED: RssFeedConfig = {
@@ -39,12 +47,23 @@ const EMPTY_FEED: RssFeedConfig = {
   spectrumAsOf: new Date().toISOString().slice(0, 10),
   spectrumReferenceUrl: null,
   tags: [],
+  promotionPolicy: {
+    lane: "world-events",
+    mapEligible: true,
+    signalEligible: true,
+    maxAgeHours: 168,
+    requireEventAction: true,
+  },
 };
 
 const categoryOptions = [
   "world-news",
   "regional-intel",
   "us-news",
+  "left-news",
+  "far-left-news",
+  "right-news",
+  "maga-far-right-news",
   "local-news",
   "portland-local",
   "technology",
@@ -264,6 +283,49 @@ export function SourcesSettingsPage() {
     );
   }
 
+  function updatePromotionPolicy<TField extends keyof SourcePromotionPolicy>(
+    index: number,
+    field: TField,
+    value: SourcePromotionPolicy[TField],
+  ) {
+    setFeeds((current) =>
+      current.map((feed, feedIndex) => {
+        if (feedIndex !== index) return feed;
+
+        return {
+          ...feed,
+          promotionPolicy: {
+            ...resolveSourcePromotionPolicy(feed),
+            [field]: value,
+          },
+        };
+      }),
+    );
+    setSaveMessage(null);
+    setSaveError(null);
+  }
+
+  function updatePromotionLane(
+    index: number,
+    lane: SourcePromotionPolicy["lane"],
+  ) {
+    setFeeds((current) =>
+      current.map((feed, feedIndex) => {
+        if (feedIndex !== index) return feed;
+
+        return {
+          ...feed,
+          promotionPolicy: resolveSourcePromotionPolicy({
+            ...feed,
+            promotionPolicy: { lane },
+          }),
+        };
+      }),
+    );
+    setSaveMessage(null);
+    setSaveError(null);
+  }
+
   function addFeed() {
     setSaveMessage(null);
     setSaveError(null);
@@ -322,6 +384,7 @@ export function SourcesSettingsPage() {
       spectrumAsOf: feed.spectrumAsOf,
       spectrumReferenceUrl: feed.spectrumReferenceUrl?.trim() || null,
       tags: feed.tags.map((tag) => tag.trim()).filter(Boolean),
+      promotionPolicy: feed.promotionPolicy,
     }));
 
     try {
@@ -578,6 +641,106 @@ export function SourcesSettingsPage() {
                           placeholder="BBC World"
                         />
                       </label>
+
+                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.035] p-4 lg:col-span-2">
+                        <div className="mb-4">
+                          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300">
+                            Event Promotion Policy
+                          </p>
+                          <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
+                            Controls whether this source can create global map
+                            incidents and signals. Leaving the JSON field absent
+                            uses the category-derived defaults shown here.
+                          </p>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                          <label className="block lg:col-span-2">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                              Source Lane
+                            </span>
+                            <select
+                              value={resolveSourcePromotionPolicy(feed).lane}
+                              onChange={(event) =>
+                                updatePromotionLane(
+                                  index,
+                                  event.target.value as SourcePromotionPolicy["lane"],
+                                )
+                              }
+                              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-[var(--text-heading)] outline-none transition focus:border-cyan-400/40"
+                            >
+                              {SOURCE_LANES.map((lane) => (
+                                <option key={lane} value={lane}>
+                                  {lane}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="block">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                              Max Age Hours
+                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={
+                                resolveSourcePromotionPolicy(feed).maxAgeHours ?? ""
+                              }
+                              onChange={(event) =>
+                                updatePromotionPolicy(
+                                  index,
+                                  "maxAgeHours",
+                                  event.target.value === ""
+                                    ? null
+                                    : Number(event.target.value),
+                                )
+                              }
+                              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-[var(--text-heading)] outline-none transition focus:border-cyan-400/40"
+                              placeholder="No limit"
+                            />
+                          </label>
+
+                          {[
+                            ["mapEligible", "Map eligible"],
+                            ["signalEligible", "Signal eligible"],
+                            ["requireEventAction", "Require event action"],
+                          ].map(([field, label]) => {
+                            const typedField =
+                              field as keyof Pick<
+                                SourcePromotionPolicy,
+                                | "mapEligible"
+                                | "signalEligible"
+                                | "requireEventAction"
+                              >;
+                            const enabled =
+                              resolveSourcePromotionPolicy(feed)[typedField];
+
+                            return (
+                              <button
+                                key={field}
+                                type="button"
+                                onClick={() =>
+                                  updatePromotionPolicy(index, typedField, !enabled)
+                                }
+                                className={[
+                                  "rounded-xl border px-3 py-2.5 text-left transition",
+                                  enabled
+                                    ? "border-emerald-400/25 bg-emerald-400/[0.07] text-emerald-200"
+                                    : "border-white/10 bg-black/25 text-[var(--text-muted)]",
+                                ].join(" ")}
+                              >
+                                <span className="block font-mono text-[9px] uppercase tracking-[0.16em]">
+                                  {label}
+                                </span>
+                                <span className="mt-1 block text-xs">
+                                  {enabled ? "Enabled" : "Disabled"}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
                       <label className="block">
                         <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">

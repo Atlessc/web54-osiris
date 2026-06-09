@@ -10,6 +10,21 @@ export type WatchPriority = "low" | "normal" | "high";
 
 export type SourceType = "rss";
 
+export type SourceLane =
+  | "world-events"
+  | "local-events"
+  | "cyber"
+  | "structured-observation"
+  | "context";
+
+export interface SourcePromotionPolicy {
+  lane: SourceLane;
+  mapEligible: boolean;
+  signalEligible: boolean;
+  maxAgeHours: number | null;
+  requireEventAction: boolean;
+}
+
 export type RegistryLocationType =
   | "country"
   | "region"
@@ -70,6 +85,7 @@ export interface RssFeedConfig {
   spectrumAsOf: string;
   spectrumReferenceUrl: string | null;
   tags: string[];
+  promotionPolicy?: Partial<SourcePromotionPolicy>;
 }
 
 export type RssFeedsConfig = RssFeedConfig[];

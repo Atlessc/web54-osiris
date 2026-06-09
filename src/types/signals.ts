@@ -1,4 +1,5 @@
 import type { SourceBiasProfile } from "@/types/source-bias";
+import type { ApiCacheMetadata } from "@/types/local-cache";
 
 export type SignalSeverity =
   | "low"
@@ -67,6 +68,8 @@ export interface SignalsApiResponse {
   derivedTotal?: number;
   timestamp?: string;
   sourceNote?: string;
+  stale?: boolean;
+  warning?: string;
   error?: string;
   metadata?: {
     feedCount?: number;
@@ -74,5 +77,6 @@ export interface SignalsApiResponse {
     staleCacheCount?: number;
     failedFeedCount?: number;
     limitations?: string[];
+    cache?: ApiCacheMetadata;
   };
 }

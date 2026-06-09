@@ -6,15 +6,22 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  Database,
   ExternalLink,
   FileJson,
   Loader2,
   RefreshCcw,
   Server,
   TerminalSquare,
+  Trash2,
 } from "lucide-react";
 
-import { getLocalConfigStatus } from "@/lib/local-config/client";
+import {
+  clearDerivedLocalCaches,
+  getLocalCacheStatus,
+  getLocalConfigStatus,
+} from "@/lib/local-config/client";
+import type { LocalCacheStatusResponse } from "@/types/local-cache";
 import type { ConfigStatusItem } from "@/types/local-config";
 
 const apiChecks = [
@@ -59,6 +66,11 @@ const apiChecks = [
     description: "Reads watched entities and aliases.",
   },
   {
+    label: "Local Cache Status",
+    href: "/api/local-cache",
+    description: "Shows derived cache freshness and preserved raw source caches.",
+  },
+  {
     label: "GDELT / RSS Mapper",
     href: "/api/gdelt",
     description: "Runs the configured RSS incident mapper.",
@@ -79,9 +91,14 @@ function getStatusClassName(item: ConfigStatusItem) {
 
 export function DeveloperSettingsPage() {
   const [configs, setConfigs] = useState<ConfigStatusItem[]>([]);
+  const [cacheStatus, setCacheStatus] = useState<LocalCacheStatusResponse | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cacheMessage, setCacheMessage] = useState<string | null>(null);
   const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
 
   const summary = useMemo(() => {
@@ -108,9 +125,13 @@ export function DeveloperSettingsPage() {
     setError(null);
 
     try {
-      const status = await getLocalConfigStatus();
+      const [status, nextCacheStatus] = await Promise.all([
+        getLocalConfigStatus(),
+        getLocalCacheStatus(),
+      ]);
 
       setConfigs(status.configs);
+      setCacheStatus(nextCacheStatus);
       setLastCheckedAt(new Date().toISOString());
     } catch (statusError) {
       setError(
@@ -124,8 +145,37 @@ export function DeveloperSettingsPage() {
     }
   }
 
+  async function clearDerivedCache() {
+    const confirmed = window.confirm(
+      "Clear derived event, signal, and source-health cache contents? All JSON files and raw RSS source caches will be preserved.",
+    );
+
+    if (!confirmed) return;
+
+    setClearingCache(true);
+    setError(null);
+    setCacheMessage(null);
+
+    try {
+      const result = await clearDerivedLocalCaches();
+      setCacheMessage(
+        `Cleared ${result.cleared.length} derived caches. Every JSON file was preserved.`,
+      );
+      setCacheStatus(await getLocalCacheStatus());
+    } catch (cacheError) {
+      setError(
+        cacheError instanceof Error
+          ? cacheError.message
+          : "Failed to clear derived caches",
+      );
+    } finally {
+      setClearingCache(false);
+    }
+  }
+
   useEffect(() => {
-    loadStatus("initial");
+    const timer = window.setTimeout(() => void loadStatus("initial"), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   return (
@@ -291,6 +341,96 @@ export function DeveloperSettingsPage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/[0.035] p-5 md:p-6">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--gold-primary)]">
+                Local Cache
+              </p>
+
+              <h2 className="mt-1 text-xl font-semibold text-[var(--text-heading)]">
+                Derived data resilience
+              </h2>
+
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+                OSIRIS preserves raw RSS source caches and local JSON files.
+                Clearing resets only derived event, signal, and source-health
+                cache contents.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void clearDerivedCache()}
+              disabled={loading || clearingCache}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/25 bg-red-400/[0.07] px-4 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-400/[0.12] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {clearingCache ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Clear Derived Cache
+            </button>
+          </div>
+
+          {cacheMessage ? (
+            <div className="mb-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] p-4 text-sm text-emerald-200">
+              {cacheMessage}
+            </div>
+          ) : null}
+
+          <div className="mb-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.05] p-4">
+            <div className="flex items-center gap-3">
+              <Database className="h-4 w-4 text-cyan-300" />
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300">
+                  Raw RSS source cache
+                </p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  {cacheStatus?.rawSourceCacheFiles ?? 0} preserved JSON source
+                  cache files
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {(cacheStatus?.derivedCaches ?? []).map((cache) => (
+              <div
+                key={cache.key}
+                className="rounded-2xl border border-white/10 bg-black/20 p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <FileJson className="h-4 w-4 text-[var(--cyan-primary)]" />
+                  <span
+                    className={[
+                      "rounded-full border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.14em]",
+                      cache.state === "ready" && !cache.isStale
+                        ? "border-emerald-400/25 bg-emerald-400/[0.07] text-emerald-300"
+                        : "border-amber-400/25 bg-amber-400/[0.07] text-amber-300",
+                    ].join(" ")}
+                  >
+                    {cache.state === "ready" && cache.isStale
+                      ? "stale"
+                      : cache.state}
+                  </span>
+                </div>
+
+                <p className="mt-3 break-words font-mono text-xs font-bold text-[var(--text-heading)]">
+                  {cache.filename}
+                </p>
+                <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                  {cache.recordCount} records
+                  {cache.ageMinutes !== null
+                    ? ` · updated ${cache.ageMinutes}m ago`
+                    : ""}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/[0.035] p-5 md:p-6">

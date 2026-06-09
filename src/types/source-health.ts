@@ -1,3 +1,6 @@
+import type { ApiCacheMetadata } from "@/types/local-cache";
+import type { SourceLane } from "@/types/local-config";
+
 export type SourceHealthStatus = "online" | "warning" | "offline";
 
 export type SourcePullStatus =
@@ -26,6 +29,10 @@ export interface SourceHealthItem {
   enabled: boolean;
   reliabilityWeight: number;
   refreshIntervalMinutes: number;
+  sourceLane: SourceLane;
+  mapEligible: boolean;
+  signalEligible: boolean;
+  maxAgeHours: number | null;
   status: SourceHealthStatus;
   pullStatus: SourcePullStatus;
   httpStatus: number | null;
@@ -57,6 +64,8 @@ export interface SourceHealthResponse {
     rejectedItemCount: number;
   };
   sources: SourceHealthItem[];
+  cache?: ApiCacheMetadata;
+  warning?: string;
   error?: string;
 }
 

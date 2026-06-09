@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { ensureLocalConfig } from "@/lib/local-config/configBootstrap";
 import { CACHE_DIR } from "@/lib/local-config/configPaths";
+import { resolveSourcePromotionPolicy } from "@/lib/event-pipeline/sourcePolicy";
 import type { RssFeedConfig } from "@/types/local-config";
 import type {
   SourceHealthItem,
@@ -422,6 +423,8 @@ export function sourcePullResultToHealth(
   result: SourcePullResult,
   ingestion: SourceIngestionDiagnostics | null = null,
 ): SourceHealthItem {
+  const promotionPolicy = resolveSourcePromotionPolicy(result.feed);
+
   return {
     id: result.feed.id,
     name: result.feed.name,
@@ -431,6 +434,10 @@ export function sourcePullResultToHealth(
     enabled: result.feed.enabled,
     reliabilityWeight: result.feed.reliabilityWeight,
     refreshIntervalMinutes: result.feed.refreshIntervalMinutes,
+    sourceLane: promotionPolicy.lane,
+    mapEligible: promotionPolicy.mapEligible,
+    signalEligible: promotionPolicy.signalEligible,
+    maxAgeHours: promotionPolicy.maxAgeHours,
     status: getHealthStatus(result),
     pullStatus: result.pullStatus,
     httpStatus: result.httpStatus,

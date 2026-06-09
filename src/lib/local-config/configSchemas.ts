@@ -4,6 +4,13 @@ const severityLevelSchema = z.enum(["notice", "watch", "warning", "critical"]);
 const confidenceLevelSchema = z.enum(["low", "medium", "high"]);
 const watchPrioritySchema = z.enum(["low", "normal", "high"]);
 const topicToneSchema = z.enum(["negative", "neutral", "positive", "mixed"]);
+const sourceLaneSchema = z.enum([
+  "world-events",
+  "local-events",
+  "cyber",
+  "structured-observation",
+  "context",
+]);
 
 export const profileSchema = z.object({
   displayName: z.string().min(1),
@@ -41,6 +48,15 @@ export const rssFeedSchema = z
     spectrumAsOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     spectrumReferenceUrl: z.string().url().nullable(),
     tags: z.array(z.string()),
+    promotionPolicy: z
+      .object({
+        lane: sourceLaneSchema.optional(),
+        mapEligible: z.boolean().optional(),
+        signalEligible: z.boolean().optional(),
+        maxAgeHours: z.number().int().min(1).nullable().optional(),
+        requireEventAction: z.boolean().optional(),
+      })
+      .optional(),
   })
   .superRefine((feed, context) => {
     if (feed.spectrumScore === null && feed.spectrumConfidence !== "unrated") {

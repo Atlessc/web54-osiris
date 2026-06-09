@@ -3,21 +3,59 @@ import { NextRequest, NextResponse } from "next/server";
 import { rssFeedSchema } from "@/lib/local-config/configSchemas";
 import { readLocalConfig } from "@/lib/local-config/configService";
 import {
+  readLocalCache,
+  writeLocalCache,
+} from "@/lib/local-cache/cacheService";
+import {
   getSourceHealthReport,
   pullRssSource,
   sourcePullResultToHealth,
 } from "@/lib/rss-ingestion/sourcePullService";
+import type { SourceHealthResponse } from "@/types/source-health";
 
 export const dynamic = "force-dynamic";
+const SOURCE_HEALTH_CACHE_TTL_MINUTES = 15;
 
 export async function GET(request: NextRequest) {
   try {
     const feeds = await readLocalConfig("rss-feeds");
     const refresh = request.nextUrl.searchParams.get("refresh") === "true";
     const report = await getSourceHealthReport(feeds, { refresh });
+    const cacheEntry = await writeLocalCache("source-health", report, {
+      ttlMinutes: SOURCE_HEALTH_CACHE_TTL_MINUTES,
+      source: "source-health-route",
+    });
 
-    return NextResponse.json(report);
+    return NextResponse.json({
+      ...report,
+      cache: {
+        mode: "live",
+        updatedAt: cacheEntry.updatedAt,
+        expiresAt: cacheEntry.expiresAt,
+        isStale: false,
+        warning: null,
+      },
+    });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to load source health";
+    const cached = await readLocalCache<SourceHealthResponse>("source-health");
+
+    if (cached) {
+      return NextResponse.json({
+        ...cached.entry.data,
+        checkedAt: new Date().toISOString(),
+        cache: {
+          mode: "stale-cache",
+          updatedAt: cached.entry.updatedAt,
+          expiresAt: cached.entry.expiresAt,
+          isStale: true,
+          warning: `Live source health failed. Showing last known data: ${message}`,
+        },
+        warning: `Live source health failed. Showing last known data: ${message}`,
+      });
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -36,10 +74,7 @@ export async function GET(request: NextRequest) {
           rejectedItemCount: 0,
         },
         sources: [],
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load source health",
+        error: message,
       },
       { status: 500 },
     );
