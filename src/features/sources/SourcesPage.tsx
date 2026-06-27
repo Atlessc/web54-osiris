@@ -56,6 +56,34 @@ function getTopRejectionReasons(source: SourceHealthItem) {
     .slice(0, 3);
 }
 
+function getTopExcludedReasons(source: SourceHealthItem) {
+  if (!source.ingestion) return [];
+
+  return Object.entries(source.ingestion.excludedReasons)
+    .sort(([, countA], [, countB]) => countB - countA)
+    .slice(0, 3);
+}
+
+function formatReasonLabel(reason: string) {
+  return reason.replaceAll("_", " ");
+}
+
+function getVisibleRejectionSamples(source: SourceHealthItem) {
+  if (!source.ingestion?.rejectedSamples?.length) return [];
+
+  const reasonOrder = new Map(
+    getTopRejectionReasons(source).map(([reason], index) => [reason, index]),
+  );
+
+  return [...source.ingestion.rejectedSamples]
+    .sort(
+      (sampleA, sampleB) =>
+        (reasonOrder.get(sampleA.reason) ?? Number.MAX_SAFE_INTEGER) -
+        (reasonOrder.get(sampleB.reason) ?? Number.MAX_SAFE_INTEGER),
+    )
+    .slice(0, 4);
+}
+
 export function SourcesPage() {
   const [report, setReport] = useState<SourceHealthResponse | null>(null);
   const [filter, setFilter] = useState<SourceFilter>("all");
@@ -140,8 +168,8 @@ export function SourcesPage() {
 
               <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] md:text-base">
                 Review configured sources, refresh-aware cache state, pull
-                failures, and the reasons feed items were rejected during
-                ingestion.
+                failures, and the reasons feed items were accepted, rejected,
+                or excluded during ingestion.
               </p>
             </div>
 
@@ -207,7 +235,7 @@ export function SourcesPage() {
           <SummaryCard
             label="Ingestion"
             value={summary?.acceptedItemCount ?? 0}
-            detail={`${summary?.rejectedItemCount ?? 0} rejected items`}
+            detail={`${summary?.candidateRejectedItemCount ?? 0} QA rejected, ${summary?.excludedItemCount ?? 0} excluded`}
             tone="gold"
           />
         </section>
@@ -298,6 +326,8 @@ function SummaryCard({ label, value, detail, tone }: SummaryCardProps) {
 
 function SourceCard({ source }: { source: SourceHealthItem }) {
   const rejectionReasons = getTopRejectionReasons(source);
+  const excludedReasons = getTopExcludedReasons(source);
+  const rejectionSamples = getVisibleRejectionSamples(source);
 
   return (
     <article className="rounded-2xl border border-white/10 bg-black/20 p-4 md:p-5">
@@ -407,30 +437,118 @@ function SourceCard({ source }: { source: SourceHealthItem }) {
             </p>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <Metric label="Processed" value={String(source.ingestion.totalItems)} />
+          <div className="mt-3 grid gap-2 text-center sm:grid-cols-2 lg:grid-cols-4">
+            <Metric
+              label="Processed"
+              value={String(source.ingestion.processedItems)}
+            />
             <Metric label="Accepted" value={String(source.ingestion.acceptedItems)} />
-            <Metric label="Rejected" value={String(source.ingestion.rejectedItems)} />
+            <Metric
+              label="QA Rejected"
+              value={String(source.ingestion.candidateRejectedItems)}
+            />
+            <Metric
+              label="Excluded"
+              value={String(source.ingestion.excludedItems)}
+            />
           </div>
 
-          {rejectionReasons.length ? (
+          <p className="mt-3 text-[11px] leading-5 text-[var(--text-muted)]">
+            QA rejected items were evaluated as incident candidates. Excluded
+            items belong to lanes intentionally kept out of the global incident
+            mapper.
+          </p>
+
+          {rejectionReasons.length || excludedReasons.length ? (
             <div className="mt-3 space-y-1">
-              {rejectionReasons.map(([reason, count]) => (
-                <p
-                  key={reason}
-                  className="flex items-center justify-between gap-3 font-mono text-[10px] text-[var(--text-muted)]"
-                >
-                  <span>{reason.replaceAll("_", " ")}</span>
-                  <span>{count}</span>
-                </p>
-              ))}
+              {rejectionReasons.length ? (
+                <>
+                  <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    Top QA rejections
+                  </p>
+                  {rejectionReasons.map(([reason, count]) => (
+                    <p
+                      key={reason}
+                      className="flex items-center justify-between gap-3 font-mono text-[10px] text-[var(--text-muted)]"
+                    >
+                      <span>{formatReasonLabel(reason)}</span>
+                      <span>{count}</span>
+                    </p>
+                  ))}
+                </>
+              ) : null}
+
+              {excludedReasons.length ? (
+                <>
+                  <p className="pt-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    Top exclusions
+                  </p>
+                  {excludedReasons.map(([reason, count]) => (
+                    <p
+                      key={reason}
+                      className="flex items-center justify-between gap-3 font-mono text-[10px] text-[var(--text-muted)]"
+                    >
+                      <span>{formatReasonLabel(reason)}</span>
+                      <span>{count}</span>
+                    </p>
+                  ))}
+                </>
+              ) : null}
             </div>
           ) : (
             <p className="mt-3 flex items-center gap-2 text-xs text-[var(--alert-green)]">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              No item rejection reasons recorded.
+              No item QA rejection or exclusion reasons recorded.
             </p>
           )}
+
+          {rejectionSamples.length ? (
+            <div className="mt-4 space-y-3">
+              <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                Sample QA rejects
+              </p>
+
+              {rejectionSamples.map((sample) => (
+                <div
+                  key={`${sample.reason}-${sample.url}`}
+                  className="rounded-xl border border-white/10 bg-black/20 p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-[rgba(212,175,55,0.24)] bg-[rgba(212,175,55,0.08)] px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--gold-primary)]">
+                      {formatReasonLabel(sample.reason)}
+                    </span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                      {sample.source}
+                    </span>
+                  </div>
+
+                  <a
+                    href={sample.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 block text-xs font-medium leading-5 text-[var(--text-heading)] transition hover:text-[var(--cyan-primary)]"
+                  >
+                    {sample.title}
+                  </a>
+
+                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-[var(--text-muted)]">
+                    {sample.matchedLocation ? (
+                      <span>Location: {sample.matchedLocation}</span>
+                    ) : null}
+                    {sample.matchedKeywords.length ? (
+                      <span>Keywords: {sample.matchedKeywords.join(", ")}</span>
+                    ) : null}
+                  </div>
+
+                  {sample.matchedSentence ? (
+                    <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+                      {sample.matchedSentence}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="mt-4 flex items-center gap-2 text-xs text-[var(--text-muted)]">

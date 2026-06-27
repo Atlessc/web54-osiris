@@ -278,12 +278,14 @@ export function HomePage() {
     setGdeltError(null);
     setProfileError(null);
 
+    const refreshQuery = mode === "refresh" ? "?refresh=true" : "";
+
     const [profileResult, configResult, sourceHealthResult, gdeltResult] =
       await Promise.allSettled([
         getLocalConfig("profile"),
         getLocalConfigStatus(),
-        getSourceHealth(),
-        fetch("/api/gdelt", { cache: "no-store" }).then(async (response) => {
+        getSourceHealth({ refresh: mode === "refresh" }),
+        fetch(`/api/gdelt${refreshQuery}`, { cache: "no-store" }).then(async (response) => {
           const payload = await response.json();
 
           if (!response.ok) {

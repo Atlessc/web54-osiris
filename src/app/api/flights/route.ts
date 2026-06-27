@@ -1,6 +1,5 @@
 
 import { NextResponse } from 'next/server';
-import { stealthFetch } from '@/lib/stealthFetch';
 
 /**
  * OSIRIS — Flight Data API
@@ -9,13 +8,21 @@ import { stealthFetch } from '@/lib/stealthFetch';
  */
 
 const REGIONS = [
-  { lat: 39.8, lon: -98.5, dist: 2000 },   // North America
-  { lat: 50.0, lon: 15.0, dist: 2000 },     // Europe
-  { lat: 35.0, lon: 105.0, dist: 2000 },    // Asia
-  { lat: -25.0, lon: 133.0, dist: 2000 },   // Australia
-  { lat: 0.0, lon: 20.0, dist: 2500 },      // Africa
-  { lat: -15.0, lon: -60.0, dist: 2000 },   // South America
+  { id: 'north-america', lat: 39.8, lon: -98.5, dist: 500 },
+  { id: 'europe', lat: 50.0, lon: 15.0, dist: 500 },
+  { id: 'east-asia', lat: 35.0, lon: 105.0, dist: 500 },
+  { id: 'australia', lat: -25.0, lon: 133.0, dist: 500 },
+  { id: 'africa', lat: 0.0, lon: 20.0, dist: 500 },
+  { id: 'south-america', lat: -15.0, lon: -60.0, dist: 500 },
 ];
+
+const ADSB_HEADERS = {
+  'User-Agent': 'OSIRIS-Flight-Mapper/1.0 (+https://osirisai.live)',
+  Accept: 'application/json',
+};
+
+const REGION_TIMEOUT_MS = 12_000;
+const REGION_CONCURRENCY = 2;
 
 // Helicopter type codes
 const HELI_TYPES = new Set([
@@ -54,39 +61,196 @@ const MILITARY_INDICATORS = new Set([
 
 const AIRLINE_CODE_RE = /^([A-Z]{3})\d/;
 
-async function fetchRegion(region: typeof REGIONS[0]): Promise<any[]> {
-  try {
-    const url = `https://api.adsb.lol/v2/lat/${region.lat}/lon/${region.lon}/dist/${region.dist}`;
-    const res = await stealthFetch(url, {
-      signal: AbortSignal.timeout(12000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data.ac || [];
-    }
-  } catch (e) {
-    console.warn(`Region fetch failed for lat=${region.lat}:`, e);
-  }
-  return [];
+type FlightCategory = 'commercial' | 'private' | 'jet' | 'military';
+type AircraftShape = 'heli' | 'plane';
+
+interface RawAircraft {
+  hex?: string;
+  flight?: string;
+  r?: string;
+  t?: string;
+  dbFlags?: number;
+  alt_baro?: number | string;
+  gs?: number;
+  track?: number;
+  lat?: number;
+  lon?: number;
+  squawk?: string;
+  nac_p?: number;
 }
 
-function classifyFlight(f: any) {
+interface Flight {
+  callsign: string;
+  lat: number;
+  lng: number;
+  alt: number;
+  heading: number;
+  speed_knots: number | null;
+  model: string;
+  icao24: string;
+  registration: string;
+  squawk: string;
+  airline_code: string;
+  aircraft_category: AircraftShape;
+  category: FlightCategory;
+  grounded: boolean;
+  nac_p?: number;
+  type: 'flight';
+}
+
+interface JammingPoint {
+  lat: number;
+  lng: number;
+  nac_p: number;
+  callsign: string;
+}
+
+interface JammingZone {
+  lat: number;
+  lng: number;
+  severity: number;
+  count: number;
+}
+
+interface RegionFetchStatus {
+  id: string;
+  lat: number;
+  lon: number;
+  dist: number;
+  ok: boolean;
+  status: number | null;
+  aircraftCount: number;
+  responseTimeMs: number;
+  error: string | null;
+}
+
+interface RegionFetchResult {
+  aircraft: RawAircraft[];
+  status: RegionFetchStatus;
+}
+
+interface FlightMetadata {
+  source: 'adsb.lol';
+  cache: 'live' | 'fresh-memory' | 'stale-memory';
+  regionTimeoutMs: number;
+  regionConcurrency: number;
+  upstreamDurationMs: number;
+  successfulRegionCount: number;
+  failedRegionCount: number;
+  regions: RegionFetchStatus[];
+  warning?: string;
+}
+
+interface FlightResponse {
+  commercial_flights: Flight[];
+  private_flights: Flight[];
+  private_jets: Flight[];
+  military_flights: Flight[];
+  gps_jamming: JammingZone[];
+  total: number;
+  timestamp: string;
+  metadata: FlightMetadata;
+  stale?: boolean;
+  error?: string;
+}
+
+async function fetchRegion(region: typeof REGIONS[0]): Promise<RegionFetchResult> {
+  const startedAt = Date.now();
+
+  try {
+    const url = `https://api.adsb.lol/v2/lat/${region.lat}/lon/${region.lon}/dist/${region.dist}`;
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(REGION_TIMEOUT_MS),
+      headers: ADSB_HEADERS,
+    });
+
+    const text = await res.text();
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Unexpected content type: ${contentType || 'unknown'}`);
+    }
+
+    const data = JSON.parse(text) as { ac?: unknown };
+    const aircraft = Array.isArray(data.ac) ? (data.ac as RawAircraft[]) : [];
+
+    return {
+      aircraft,
+      status: {
+        id: region.id,
+        lat: region.lat,
+        lon: region.lon,
+        dist: region.dist,
+        ok: true,
+        status: res.status,
+        aircraftCount: aircraft.length,
+        responseTimeMs: Date.now() - startedAt,
+        error: null,
+      },
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Region fetch failed';
+    console.warn(`Region fetch failed for ${region.id}:`, message);
+
+    return {
+      aircraft: [],
+      status: {
+        id: region.id,
+        lat: region.lat,
+        lon: region.lon,
+        dist: region.dist,
+        ok: false,
+        status: null,
+        aircraftCount: 0,
+        responseTimeMs: Date.now() - startedAt,
+        error: message,
+      },
+    };
+  }
+}
+
+async function fetchRegions() {
+  const results = new Array<RegionFetchResult>(REGIONS.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < REGIONS.length) {
+      const index = nextIndex++;
+      results[index] = await fetchRegion(REGIONS[index]);
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(REGION_CONCURRENCY, REGIONS.length) },
+      () => worker(),
+    ),
+  );
+
+  return results;
+}
+
+function classifyFlight(f: RawAircraft): Flight | null {
   const modelUpper = (f.t || '').toUpperCase();
   const flightStr = (f.flight || '').trim().toUpperCase();
-  const dbFlags = (f.dbFlags || 0);
+  const dbFlags = typeof f.dbFlags === 'number' ? f.dbFlags : 0;
 
   // Skip fixed structures
   if (modelUpper === 'TWR') return null;
 
   const lat = f.lat;
   const lon = f.lon;
-  if (lat == null || lon == null) return null;
+  if (typeof lat !== 'number' || typeof lon !== 'number') return null;
 
   const callsign = flightStr || f.hex || 'UNKNOWN';
   const altRaw = f.alt_baro;
   const altMeters = typeof altRaw === 'number' ? altRaw * 0.3048 : 0;
   const speedKnots = typeof f.gs === 'number' ? Math.round(f.gs * 10) / 10 : null;
-  const heading = f.track || 0;
+  const heading = typeof f.track === 'number' ? f.track : 0;
   const isHeli = HELI_TYPES.has(modelUpper);
   const isGrounded = typeof altRaw === 'number' && altRaw < 100;
 
@@ -95,7 +259,7 @@ function classifyFlight(f: any) {
   const airlineCode = airlineMatch ? airlineMatch[1] : '';
 
   // Classification
-  let category: 'commercial' | 'private' | 'jet' | 'military' = 'commercial';
+  let category: FlightCategory = 'commercial';
   if (dbFlags & 1 || MILITARY_INDICATORS.has(modelUpper) || (f.flight || '').match(/^(RCH|KING|DUKE|EVAC|JAKE|REACH|CONVOY)\d/i)) {
     category = 'military';
   } else if (PRIVATE_JET_TYPES.has(modelUpper)) {
@@ -130,19 +294,43 @@ function classifyFlight(f: any) {
 // 1. It coalesces concurrent requests within the same isolate
 // 2. It prevents hammering adsb.lol which would cause rate-limit bans
 // For a globally shared cache, migrate to Vercel KV or similar persistent store.
-let cachedData: any = null;
+let cachedData: FlightResponse | null = null;
 let lastFetchTime = 0;
 const CACHE_TTL = 45000; // 45 seconds cache window
-let fetchPromise: Promise<any> | null = null;
+let fetchPromise: Promise<FlightResponse> | null = null;
+
+function staleFlightResponse(error: string) {
+  if (!cachedData) return null;
+
+  return {
+    ...cachedData,
+    stale: true,
+    error,
+    metadata: {
+      ...cachedData.metadata,
+      cache: 'stale-memory',
+      warning: error,
+    },
+  };
+}
 
 export async function GET() {
   const now = Date.now();
 
   // Return cached data if within TTL
   if (cachedData && now - lastFetchTime < CACHE_TTL) {
-    return NextResponse.json(cachedData, {
-      headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' },
-    });
+    return NextResponse.json(
+      {
+        ...cachedData,
+        metadata: {
+          ...cachedData.metadata,
+          cache: 'fresh-memory',
+        },
+      },
+      {
+        headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' },
+      },
+    );
   }
 
   // Coalesce concurrent requests: wait for the active fetch rather than starting a new one
@@ -162,32 +350,28 @@ export async function GET() {
 
   // Start new global fetch
   fetchPromise = (async () => {
-    // Fetch all 6 regions in parallel
-    const regionResults = await Promise.allSettled(
-      REGIONS.map(r => fetchRegion(r))
-    );
+    const startedAt = Date.now();
+    const regionResults = await fetchRegions();
 
-    const allRaw: any[] = [];
+    const allRaw: RawAircraft[] = [];
     const seenHex = new Set<string>();
 
     for (const result of regionResults) {
-      if (result.status === 'fulfilled') {
-        for (const ac of result.value) {
-          const hex = (ac.hex || '').toLowerCase().trim();
-          if (hex && !seenHex.has(hex)) {
-            seenHex.add(hex);
-            allRaw.push(ac);
-          }
+      for (const ac of result.aircraft) {
+        const hex = (ac.hex || '').toLowerCase().trim();
+        if (hex && !seenHex.has(hex)) {
+          seenHex.add(hex);
+          allRaw.push(ac);
         }
       }
     }
 
     // Classify all flights
-    const commercial: any[] = [];
-    const privateFl: any[] = [];
-    const jets: any[] = [];
-    const military: any[] = [];
-    const gpsJamming: any[] = [];
+    const commercial: Flight[] = [];
+    const privateFl: Flight[] = [];
+    const jets: Flight[] = [];
+    const military: Flight[] = [];
+    const gpsJamming: JammingPoint[] = [];
 
     for (const raw of allRaw) {
       const flight = classifyFlight(raw);
@@ -222,6 +406,16 @@ export async function GET() {
       gps_jamming: jammingZones,
       total: allRaw.length,
       timestamp: new Date().toISOString(),
+      metadata: {
+        source: 'adsb.lol',
+        cache: 'live',
+        regionTimeoutMs: REGION_TIMEOUT_MS,
+        regionConcurrency: REGION_CONCURRENCY,
+        upstreamDurationMs: Date.now() - startedAt,
+        successfulRegionCount: regionResults.filter((result) => result.status.ok).length,
+        failedRegionCount: regionResults.filter((result) => !result.status.ok).length,
+        regions: regionResults.map((result) => result.status),
+      },
     };
   })();
 
@@ -239,6 +433,19 @@ export async function GET() {
   } catch (error) {
     console.error('Flight fetch error:', error);
     fetchPromise = null;
+
+    const stale = staleFlightResponse(
+      error instanceof Error ? error.message : 'Failed to fetch flight data',
+    );
+
+    if (stale) {
+      return NextResponse.json(stale, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=60',
+        },
+      });
+    }
+
     return NextResponse.json(
       { error: 'Failed to fetch flight data' },
       { status: 500 }
@@ -246,7 +453,10 @@ export async function GET() {
   }
 }
 
-function aggregateJamming(points: any[], threshold: number) {
+function aggregateJamming(
+  points: JammingPoint[],
+  threshold: number,
+): JammingZone[] {
   if (points.length === 0) return [];
   const grid = new Map<string, { lat: number; lng: number; count: number; total_nac_p: number }>();
   const GRID_SIZE = 2; // degrees

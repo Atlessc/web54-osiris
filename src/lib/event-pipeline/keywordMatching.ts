@@ -20,10 +20,10 @@ const KEYWORD_CONTEXT_PATTERNS: Record<string, RegExp> = {
 };
 
 const EVENT_ACTION_PATTERN =
-  /\b(attacks?|attacked|airstrikes?|strikes?|struck|raids?|ambush\w*|missiles?|rockets?|shelling|shelled|bomb\w*|explosions?|blasts?|detonat\w*|invasion|invaded|incursion|clashes?|fighting|firefight|killed|dead|wounded|injured|casualties|massacre|protests?|riots?|unrest|curfew|crackdown|arrests?|detained|seized|indicted|charged|convicted|sentenced|coup|ousted|resigned|state of emergency|martial law|sanctions?|banned|blocked|ordered|approved|passed|signed|declared|ceasefire|deployed|mobilized|intercepted|shot down|blackout|outages?|closures?|collapse\w*|disruption|shutdown|halted|suspended|reopened|earthquake|aftershock|tsunami|flood\w*|wildfire|hurricane|tornado|landslide|evacuat\w*|outbreak|epidemic|pandemic|quarantine|refugees?|famine|shooting|crash\w*|fire)\b/i;
+  /\b(attacks?|attacked|airstrikes?|strikes?|struck|raids?|ambush\w*|missiles?|rockets?|shelling|shelled|bomb\w*|explosions?|blasts?|detonat\w*|invasion|invaded|incursion|clashes?|fighting|firefight|kill(?:ed|s)?|dead|wounded|injured|casualties|massacre|protests?|riots?|unrest|curfew|crackdown|arrests?|detain(?:ed|s)?|seiz(?:ed|es)|indicted|charged|convicted|sentenced|coup|ousted|resigned|state of emergency|martial law|sanction(?:s|ed)?|ban(?:ned|s)?|block(?:ed|s)?|order(?:ed|s)?|approv(?:ed|es)|pass(?:ed|es)|sign(?:ed|s)|declar(?:ed|es)|veto(?:ed|es)|ceasefire|deplo(?:yed|ys)|mobiliz(?:ed|es)|mobilis(?:ed|es)|intercept(?:ed|s)|shot down|blackout|outages?|closures?|close(?:d|s)|collapse\w*|disruption|shutdown|halt(?:ed|s|ing)?|suspend(?:ed|s|ing)?|reopen(?:ed|s)|earthquake|aftershock|tsunami|flood\w*|wildfire|hurricane|tornado|landslide|evacuat\w*|outbreak|epidemic|pandemic|quarantine|refugees?|famine|shooting|crash\w*|fire)\b/i;
 
 const ROUNDUP_TITLE_PATTERN =
-  /\b(news wrap|morning briefing|evening briefing|daily briefing|live updates?|what you need to know|top stories|and,\s|plus,\s)\b/i;
+  /\b(news wrap|morning briefing|evening briefing|daily briefing|daily digest|live updates?|live blog|as it happened|what you need to know|what to know|top stories|week in review|headlines for (?:[a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[a-z]+\s+\d{4})|and,\s|plus,\s)\b/i;
 const NON_EVENT_TITLE_PATTERN =
   /\b(a list of|history of|explained|explainer|how .* built|stock market|stocks?|shares?|market jitters|investors?|oil prices?|world cup|podcast|newsletter)\b/i;
 

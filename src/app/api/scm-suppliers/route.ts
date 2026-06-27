@@ -28,8 +28,49 @@ const SUPPLIERS = [
   { id: 'sup-panasonic-nevada', name: 'Panasonic Giga (Tier 1)', city: 'Sparks', country: 'US', lat: 39.539, lng: -119.439, category: 'Battery' },
 ];
 
-export async function GET() {
-  let dynamicSuppliers = [...SUPPLIERS].map(s => ({ ...s, risk_level: 'NORMAL', active_threats: [] as string[] }));
+type SupplierRiskLevel = 'NORMAL' | 'HIGH' | 'CRITICAL';
+
+interface Supplier {
+  id: string;
+  name: string;
+  city: string;
+  country: string;
+  lat: number;
+  lng: number;
+  category: string;
+}
+
+interface RiskSupplier extends Supplier {
+  risk_level: SupplierRiskLevel;
+  active_threats: string[];
+}
+
+interface EarthquakeFeature {
+  geometry: {
+    coordinates: [number, number, number?];
+  };
+  properties: {
+    mag: number;
+  };
+}
+
+interface FirePoint {
+  lat: number;
+  lng: number;
+}
+
+interface ConflictPoint {
+  lat: number;
+  lng: number;
+}
+
+export async function GET(req: Request) {
+  const dynamicSuppliers: RiskSupplier[] = [...SUPPLIERS].map((supplier) => ({
+    ...(supplier as Supplier),
+    risk_level: 'NORMAL',
+    active_threats: [],
+  }));
+  const origin = new URL(req.url).origin;
 
   // Fast distance approximation (km)
   const getDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -43,27 +84,27 @@ export async function GET() {
     const eqRes = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson', { signal: AbortSignal.timeout(5000) });
     if (eqRes.ok) {
       const eqData = await eqRes.json();
-      const earthquakes = eqData.features || [];
+      const earthquakes = (eqData.features || []) as EarthquakeFeature[];
       dynamicSuppliers.forEach(sup => {
-        const nearbyEq = earthquakes.filter((eq: any) => {
+        const nearbyEq = earthquakes.filter((eq) => {
           const [lng, lat] = eq.geometry.coordinates;
           return getDistanceKm(sup.lat, sup.lng, lat, lng) < 150; // 150km impact zone
         });
         if (nearbyEq.length > 0) {
           sup.risk_level = 'CRITICAL';
-          sup.active_threats.push(`SEISMIC SHOCK (M${Math.max(...nearbyEq.map((eq: any) => eq.properties.mag)).toFixed(1)})`);
+          sup.active_threats.push(`SEISMIC SHOCK (M${Math.max(...nearbyEq.map((eq) => eq.properties.mag)).toFixed(1)})`);
         }
       });
     }
 
     // 2. Fetch Active Fires (NASA FIRMS mock proxy from local or direct)
     // For performance, we'll fetch from the local fires endpoint since it already aggregates FIRMS
-    const fireRes = await fetch('http://127.0.0.1:3000/api/fires', { signal: AbortSignal.timeout(5000) });
+    const fireRes = await fetch(`${origin}/api/fires`, { signal: AbortSignal.timeout(5000) });
     if (fireRes.ok) {
       const fireData = await fireRes.json();
-      const fires = fireData.data || [];
+      const fires = (fireData.data || []) as FirePoint[];
       dynamicSuppliers.forEach(sup => {
-        const nearbyFires = fires.filter((f: any) => getDistanceKm(sup.lat, sup.lng, f.lat, f.lng) < 50); // 50km fire zone
+        const nearbyFires = fires.filter((f) => getDistanceKm(sup.lat, sup.lng, f.lat, f.lng) < 50); // 50km fire zone
         if (nearbyFires.length > 0) {
           if (sup.risk_level === 'NORMAL') sup.risk_level = 'HIGH';
           sup.active_threats.push(`WILDFIRE PROXIMITY (${nearbyFires.length} hotspots)`);
@@ -72,12 +113,12 @@ export async function GET() {
     }
 
     // 3. Fetch Conflict Zones (GDELT)
-    const gdeltRes = await fetch('http://127.0.0.1:3000/api/gdelt', { signal: AbortSignal.timeout(5000) });
+    const gdeltRes = await fetch(`${origin}/api/gdelt`, { signal: AbortSignal.timeout(5000) });
     if (gdeltRes.ok) {
       const gdeltData = await gdeltRes.json();
-      const conflicts = gdeltData.events || [];
+      const conflicts = (gdeltData.events || []) as ConflictPoint[];
       dynamicSuppliers.forEach(sup => {
-        const nearbyConflicts = conflicts.filter((c: any) => getDistanceKm(sup.lat, sup.lng, c.lat, c.lng) < 100);
+        const nearbyConflicts = conflicts.filter((c) => getDistanceKm(sup.lat, sup.lng, c.lat, c.lng) < 100);
         if (nearbyConflicts.length > 0) {
           sup.risk_level = 'CRITICAL';
           sup.active_threats.push(`ARMED CONFLICT / RIOT`);

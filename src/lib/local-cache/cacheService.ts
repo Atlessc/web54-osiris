@@ -14,12 +14,14 @@ import type {
 } from "@/types/local-cache";
 
 export const DERIVED_CACHE_KEYS: LocalCacheKey[] = [
+  "gdelt-response",
   "normalized-events",
   "generated-signals",
   "source-health",
 ];
 
 const CACHE_FILES: Record<LocalCacheKey, string> = {
+  "gdelt-response": "gdelt-response.json",
   "normalized-events": "normalized-events.json",
   "generated-signals": "generated-signals.json",
   "source-health": "source-health.json",

@@ -13,8 +13,19 @@ const COMMODITY_TICKERS = ['GC=F', 'SI=F', 'HG=F', 'NG=F', 'ZW=F', 'ZC=F'];
 const CRYPTO_TICKERS = ['BTC-USD', 'ETH-USD'];
 const INDEX_TICKERS = ['ES=F', 'NQ=F'];
 
+interface QuoteData {
+  price: number;
+  change_percent: number;
+  up: boolean;
+}
+
+interface MaritimeChokepoint {
+  name: string;
+  risk?: string;
+}
+
 // Yahoo Finance v8 chart API
-async function fetchYahoo(symbol: string): Promise<any | null> {
+async function fetchYahoo(symbol: string): Promise<QuoteData | null> {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
     const res = await fetch(url, {
@@ -43,7 +54,7 @@ async function fetchYahoo(symbol: string): Promise<any | null> {
 }
 
 // Yahoo Finance v6 quote API (alternative endpoint)
-async function fetchYahooV6(symbol: string): Promise<any | null> {
+async function fetchYahooV6(symbol: string): Promise<QuoteData | null> {
   try {
     const url = `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encodeURIComponent(symbol)}`;
     const res = await fetch(url, {
@@ -65,14 +76,14 @@ async function fetchYahooV6(symbol: string): Promise<any | null> {
 }
 
 // Fetch from CoinGecko for crypto (free, no key)
-async function fetchCoinGecko(): Promise<Record<string, any>> {
+async function fetchCoinGecko(): Promise<Record<string, QuoteData>> {
   try {
     const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true', {
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return {};
     const data = await res.json();
-    const result: Record<string, any> = {};
+    const result: Record<string, QuoteData> = {};
     if (data.bitcoin) {
       result['Bitcoin'] = {
         price: Math.round(data.bitcoin.usd * 100) / 100,
@@ -91,7 +102,7 @@ async function fetchCoinGecko(): Promise<Record<string, any>> {
   } catch { return {}; }
 }
 
-async function fetchQuote(symbol: string): Promise<any | null> {
+async function fetchQuote(symbol: string): Promise<QuoteData | null> {
   // Try Yahoo v8 first, then v6
   let result = await fetchYahoo(symbol);
   if (!result) result = await fetchYahooV6(symbol);
@@ -106,8 +117,9 @@ const OIL_NAMES: Record<string, string> = { 'CL=F': 'WTI Crude', 'BZ=F': 'Brent 
 const CRYPTO_NAMES: Record<string, string> = { 'BTC-USD': 'Bitcoin', 'ETH-USD': 'Ethereum' };
 const INDEX_NAMES: Record<string, string> = { 'ES=F': 'S&P 500', 'NQ=F': 'Nasdaq 100' };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const origin = new URL(req.url).origin;
     // Fetch all in parallel
     const [stockResults, oilResults, commodityResults, yahooResults, indexResults, cgCrypto] = await Promise.all([
       Promise.all(DEFENSE_STOCKS.map(async t => ({ symbol: t, data: await fetchQuote(t) }))),
@@ -118,37 +130,39 @@ export async function GET() {
       fetchCoinGecko(), // CoinGecko as crypto fallback
     ]);
 
-    const stocks: Record<string, any> = {};
+    const stocks: Record<string, QuoteData> = {};
     for (const { symbol, data } of stockResults) { if (data) stocks[symbol] = data; }
 
-    const oil: Record<string, any> = {};
+    const oil: Record<string, QuoteData> = {};
     for (const { symbol, data } of oilResults) { if (data) oil[OIL_NAMES[symbol] || symbol] = data; }
 
-    const commodities: Record<string, any> = {};
+    const commodities: Record<string, QuoteData> = {};
     for (const { symbol, data } of commodityResults) { if (data) commodities[COMMODITY_NAMES[symbol] || symbol] = data; }
 
     // Crypto: prefer Yahoo, fallback to CoinGecko
-    const crypto: Record<string, any> = {};
+    const crypto: Record<string, QuoteData> = {};
     for (const { symbol, data } of yahooResults) { if (data) crypto[CRYPTO_NAMES[symbol] || symbol] = data; }
     // Fill gaps with CoinGecko
     for (const [name, data] of Object.entries(cgCrypto)) {
       if (!crypto[name]) crypto[name] = data;
     }
 
-    const indices: Record<string, any> = {};
+    const indices: Record<string, QuoteData> = {};
     for (const { symbol, data } of indexResults) { if (data) indices[INDEX_NAMES[symbol] || symbol] = data; }
 
     // --- SCM Integration: Chokepoint-Commodity Correlation ---
     const scm_alerts: string[] = [];
     try {
-      const maritimeRes = await fetch('http://127.0.0.1:3000/api/maritime', { signal: AbortSignal.timeout(3000) });
+      const maritimeRes = await fetch(`${origin}/api/maritime`, {
+        signal: AbortSignal.timeout(3000),
+      });
       if (maritimeRes.ok) {
         const maritimeData = await maritimeRes.json();
-        const chokepoints = maritimeData.chokepoints || [];
-        
-        const hormuz = chokepoints.find((c: any) => c.name === 'Strait of Hormuz');
-        const suez = chokepoints.find((c: any) => c.name === 'Suez Canal');
-        const panama = chokepoints.find((c: any) => c.name === 'Panama Canal');
+        const chokepoints = (maritimeData.chokepoints || []) as MaritimeChokepoint[];
+
+        const hormuz = chokepoints.find((c) => c.name === 'Strait of Hormuz');
+        const suez = chokepoints.find((c) => c.name === 'Suez Canal');
+        const panama = chokepoints.find((c) => c.name === 'Panama Canal');
 
         if (hormuz && (hormuz.risk === 'CRITICAL' || hormuz.risk === 'HIGH')) {
           scm_alerts.push(`🚨 HORMUZ ${hormuz.risk}: High risk of WTI/Brent Crude price spike due to congestion.`);
@@ -160,7 +174,7 @@ export async function GET() {
           scm_alerts.push(`🚨 PANAMA ${panama.risk}: LNG and Agriculture (Corn/Wheat) shipment delays expected.`);
         }
       }
-    } catch (e) {
+    } catch {
       // Ignore if maritime is unreachable
     }
 

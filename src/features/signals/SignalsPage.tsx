@@ -868,12 +868,15 @@ export function SignalsPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const fetchSignals = useCallback(async () => {
+  const fetchSignals = useCallback(async (refresh = false) => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/gdelt", { cache: "no-store" });
+      const response = await fetch(
+        `/api/gdelt${refresh ? "?refresh=true" : ""}`,
+        { cache: "no-store" },
+      );
       const nextData = (await response.json()) as SignalsApiResponse;
 
       if (!response.ok) {
@@ -890,7 +893,7 @@ export function SignalsPage() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void fetchSignals(), 0);
+    const timer = window.setTimeout(() => void fetchSignals(false), 0);
     return () => window.clearTimeout(timer);
   }, [fetchSignals]);
 
@@ -1079,7 +1082,7 @@ export function SignalsPage() {
             </div>
             <button
               type="button"
-              onClick={() => void fetchSignals()}
+              onClick={() => void fetchSignals(true)}
               disabled={loading}
               className="inline-flex items-center gap-2 rounded-lg border border-[var(--gold-primary)]/35 bg-[var(--gold-primary)]/[0.07] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--gold-light)] transition hover:bg-[var(--gold-primary)]/[0.13] disabled:opacity-50"
             >

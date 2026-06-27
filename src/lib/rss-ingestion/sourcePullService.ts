@@ -4,13 +4,19 @@ import path from "node:path";
 
 import { ensureLocalConfig } from "@/lib/local-config/configBootstrap";
 import { CACHE_DIR } from "@/lib/local-config/configPaths";
-import { resolveSourcePromotionPolicy } from "@/lib/event-pipeline/sourcePolicy";
-import type { RssFeedConfig } from "@/types/local-config";
+import {
+  resolveSourcePromotionPolicy,
+  SOURCE_LANES,
+} from "@/lib/event-pipeline/sourcePolicy";
+import type { RssFeedConfig, SourceLane } from "@/types/local-config";
 import type {
   SourceHealthItem,
   SourceHealthResponse,
   SourceHealthStatus,
   SourceIngestionDiagnostics,
+  SourceIngestionReasonCount,
+  SourceIngestionRollup,
+  SourceIngestionSummary,
   SourcePullStatus,
 } from "@/types/source-health";
 
@@ -20,6 +26,7 @@ const USER_AGENT =
   "OSIRIS-RSS-OSINT-Mapper/1.0 (+https://osirisai.live)";
 const ACCEPT_HEADER =
   "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8";
+const TOP_REASON_LIMIT = 12;
 let rssCacheReadyPromise: Promise<void> | null = null;
 
 interface SourcePullCacheEntry {
@@ -41,6 +48,12 @@ interface DiagnosticsCache {
   version: 1;
   updatedAt: string;
   sources: SourceIngestionDiagnostics[];
+}
+
+interface SourceIngestionSummarySource {
+  category: string;
+  sourceLane: SourceLane;
+  ingestion: SourceIngestionDiagnostics | null;
 }
 
 export interface SourcePullResult {
@@ -77,6 +90,198 @@ function getItemCount(xml: string) {
   const atomEntries = xml.match(/<entry\b[^>]*>/gi) || [];
 
   return rssItems.length + atomEntries.length;
+}
+
+function getReasonTotal(reasons: Record<string, number>) {
+  return Object.values(reasons).reduce((total, count) => total + count, 0);
+}
+
+function getTopReasonCounts(
+  reasons: Record<string, number>,
+): SourceIngestionReasonCount[] {
+  return Object.entries(reasons)
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((reasonA, reasonB) => reasonB.count - reasonA.count)
+    .slice(0, TOP_REASON_LIMIT);
+}
+
+function isLaneExclusionReason(reason: string) {
+  return reason.startsWith("source_lane_");
+}
+
+function splitLegacyReasons(reasons: Record<string, number>) {
+  const rejectionReasons: Record<string, number> = {};
+  const excludedReasons: Record<string, number> = {};
+
+  for (const [reason, count] of Object.entries(reasons)) {
+    if (reason === "source_pull_failed") continue;
+
+    if (isLaneExclusionReason(reason)) {
+      excludedReasons[reason] = count;
+    } else {
+      rejectionReasons[reason] = count;
+    }
+  }
+
+  return { rejectionReasons, excludedReasons };
+}
+
+export function normalizeSourceIngestionDiagnostics(
+  diagnostics: SourceIngestionDiagnostics,
+): SourceIngestionDiagnostics {
+  const hasModernBuckets =
+    typeof diagnostics.candidateRejectedItems === "number" ||
+    typeof diagnostics.excludedItems === "number" ||
+    Boolean(diagnostics.excludedReasons);
+  const processedItems =
+    diagnostics.processedItems ?? diagnostics.totalItems ?? 0;
+  const acceptedItems = diagnostics.acceptedItems ?? 0;
+
+  if (hasModernBuckets) {
+    const rejectionReasons = diagnostics.rejectionReasons ?? {};
+    const excludedReasons = diagnostics.excludedReasons ?? {};
+    const rejectedSamples = Array.isArray(diagnostics.rejectedSamples)
+      ? diagnostics.rejectedSamples
+      : [];
+    const candidateRejectedItems =
+      diagnostics.candidateRejectedItems ??
+      diagnostics.rejectedItems ??
+      getReasonTotal(rejectionReasons);
+    const excludedItems =
+      diagnostics.excludedItems ?? getReasonTotal(excludedReasons);
+
+    return {
+      ...diagnostics,
+      processedItems,
+      totalItems: diagnostics.totalItems ?? processedItems,
+      acceptedItems,
+      candidateRejectedItems,
+      rejectedItems: candidateRejectedItems,
+      excludedItems,
+      rejectionReasons,
+      excludedReasons,
+      rejectedSamples,
+    };
+  }
+
+  const { rejectionReasons, excludedReasons } = splitLegacyReasons(
+    diagnostics.rejectionReasons ?? {},
+  );
+  const candidateRejectedItems = getReasonTotal(rejectionReasons);
+  const excludedItems = getReasonTotal(excludedReasons);
+
+  return {
+    ...diagnostics,
+    processedItems,
+    totalItems: diagnostics.totalItems ?? processedItems,
+    acceptedItems,
+    candidateRejectedItems,
+    rejectedItems: candidateRejectedItems,
+    excludedItems,
+    rejectionReasons,
+    excludedReasons,
+    rejectedSamples: [],
+  };
+}
+
+function createEmptyIngestionRollup(): SourceIngestionRollup {
+  return {
+    sourceCount: 0,
+    processedItemCount: 0,
+    acceptedItemCount: 0,
+    candidateRejectedItemCount: 0,
+    excludedItemCount: 0,
+    rejectionReasons: {},
+    excludedReasons: {},
+    topRejectionReasons: [],
+    topExcludedReasons: [],
+  };
+}
+
+function addReasonCounts(
+  target: Record<string, number>,
+  source: Record<string, number>,
+) {
+  for (const [reason, count] of Object.entries(source)) {
+    target[reason] = (target[reason] ?? 0) + count;
+  }
+}
+
+function addIngestionToRollup(
+  rollup: SourceIngestionRollup,
+  ingestion: SourceIngestionDiagnostics | null,
+) {
+  rollup.sourceCount += 1;
+
+  if (!ingestion) return;
+
+  rollup.processedItemCount += ingestion.processedItems;
+  rollup.acceptedItemCount += ingestion.acceptedItems;
+  rollup.candidateRejectedItemCount += ingestion.candidateRejectedItems;
+  rollup.excludedItemCount += ingestion.excludedItems;
+  addReasonCounts(rollup.rejectionReasons, ingestion.rejectionReasons);
+  addReasonCounts(rollup.excludedReasons, ingestion.excludedReasons);
+}
+
+function finalizeIngestionRollup(
+  rollup: SourceIngestionRollup,
+): SourceIngestionRollup {
+  return {
+    ...rollup,
+    topRejectionReasons: getTopReasonCounts(rollup.rejectionReasons),
+    topExcludedReasons: getTopReasonCounts(rollup.excludedReasons),
+  };
+}
+
+export function buildSourceIngestionSummary(
+  sources: SourceIngestionSummarySource[],
+): SourceIngestionSummary {
+  const total = createEmptyIngestionRollup();
+  const ingestionByLane = SOURCE_LANES.reduce(
+    (rollups, lane) => {
+      rollups[lane] = createEmptyIngestionRollup();
+      return rollups;
+    },
+    {} as Record<SourceLane, SourceIngestionRollup>,
+  );
+  const ingestionByCategory: Record<string, SourceIngestionRollup> = {};
+
+  for (const source of sources) {
+    const ingestion = source.ingestion
+      ? normalizeSourceIngestionDiagnostics(source.ingestion)
+      : null;
+    const category = source.category || "uncategorized";
+
+    addIngestionToRollup(total, ingestion);
+    addIngestionToRollup(ingestionByLane[source.sourceLane], ingestion);
+
+    if (!ingestionByCategory[category]) {
+      ingestionByCategory[category] = createEmptyIngestionRollup();
+    }
+
+    addIngestionToRollup(ingestionByCategory[category], ingestion);
+  }
+
+  for (const lane of SOURCE_LANES) {
+    ingestionByLane[lane] = finalizeIngestionRollup(ingestionByLane[lane]);
+  }
+
+  for (const [category, rollup] of Object.entries(ingestionByCategory)) {
+    ingestionByCategory[category] = finalizeIngestionRollup(rollup);
+  }
+
+  const finalizedTotal = finalizeIngestionRollup(total);
+
+  return {
+    processedItemCount: finalizedTotal.processedItemCount,
+    acceptedItemCount: finalizedTotal.acceptedItemCount,
+    candidateRejectedItemCount: finalizedTotal.candidateRejectedItemCount,
+    excludedItemCount: finalizedTotal.excludedItemCount,
+    topRejectionReasons: finalizedTotal.topRejectionReasons,
+    topExcludedReasons: finalizedTotal.topExcludedReasons,
+    ingestionByLane,
+    ingestionByCategory,
+  };
 }
 
 function getNextRefreshAt(fetchedAt: string, refreshIntervalMinutes: number) {
@@ -379,7 +584,9 @@ export async function writeSourceIngestionDiagnostics(
   await writeJsonAtomically(DIAGNOSTICS_PATH, payload);
 }
 
-export async function readSourceIngestionDiagnostics() {
+export async function readSourceIngestionDiagnostics(): Promise<
+  SourceIngestionDiagnostics[]
+> {
   await ensureRssCacheDir();
 
   try {
@@ -390,7 +597,7 @@ export async function readSourceIngestionDiagnostics() {
       return [];
     }
 
-    return parsed.sources;
+    return parsed.sources.map(normalizeSourceIngestionDiagnostics);
   } catch (error) {
     const isMissing =
       error &&
@@ -554,10 +761,33 @@ export async function getSourceHealthReport(
       diagnosticsByFeedId.get(result.feed.id) ?? null,
     ),
   );
+  const ingestionSummary = buildSourceIngestionSummary(
+    sources.map((source) => ({
+      category: source.category,
+      sourceLane: source.sourceLane,
+      ingestion: source.ingestion,
+    })),
+  );
 
   const online = sources.filter((source) => source.status === "online").length;
   const warning = sources.filter((source) => source.status === "warning").length;
   const offline = sources.filter((source) => source.status === "offline").length;
+  const sourceLaneCounts = SOURCE_LANES.reduce(
+    (counts, lane) => {
+      counts[lane] = sources.filter(
+        (source) => source.sourceLane === lane,
+      ).length;
+      return counts;
+    },
+    {} as Record<SourceLane, number>,
+  );
+  const pullStatusCounts = sources.reduce<Partial<Record<SourcePullStatus, number>>>(
+    (counts, source) => {
+      counts[source.pullStatus] = (counts[source.pullStatus] ?? 0) + 1;
+      return counts;
+    },
+    {},
+  );
 
   return {
     ok: offline === 0,
@@ -572,15 +802,19 @@ export async function getSourceHealthReport(
       failedSourceCount: offline,
       cachedSourceCount: sources.filter((source) => source.fromCache).length,
       staleSourceCount: sources.filter((source) => source.isStale).length,
-      acceptedItemCount: sources.reduce(
-        (total, source) => total + (source.ingestion?.acceptedItems ?? 0),
-        0,
-      ),
-      rejectedItemCount: sources.reduce(
-        (total, source) => total + (source.ingestion?.rejectedItems ?? 0),
-        0,
-      ),
+      processedItemCount: ingestionSummary.processedItemCount,
+      acceptedItemCount: ingestionSummary.acceptedItemCount,
+      candidateRejectedItemCount:
+        ingestionSummary.candidateRejectedItemCount,
+      rejectedItemCount: ingestionSummary.candidateRejectedItemCount,
+      excludedItemCount: ingestionSummary.excludedItemCount,
+      ingestionByLane: ingestionSummary.ingestionByLane,
+      ingestionByCategory: ingestionSummary.ingestionByCategory,
     },
+    topRejectionReasons: ingestionSummary.topRejectionReasons,
+    topExcludedReasons: ingestionSummary.topExcludedReasons,
+    sourceLaneCounts,
+    pullStatusCounts,
     sources,
   };
 }

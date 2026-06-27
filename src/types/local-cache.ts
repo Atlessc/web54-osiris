@@ -1,4 +1,5 @@
 export type LocalCacheKey =
+  | "gdelt-response"
   | "normalized-events"
   | "generated-signals"
   | "source-health";
@@ -54,9 +55,12 @@ export interface LocalCacheClearResponse {
 }
 
 export interface ApiCacheMetadata {
-  mode: "live" | "stale-cache";
+  mode: "live" | "fresh-cache" | "stale-cache" | "fallback";
   updatedAt: string;
   expiresAt: string;
   isStale: boolean;
   warning: string | null;
+  servedFrom?: "live-network" | "fresh-local-cache" | "stale-local-cache" | "fallback-cache";
+  requestReason?: "default" | "manual-refresh" | "cache-miss" | "stale-cache-revalidation";
+  sharedJob?: boolean;
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readLocalCache } from '@/lib/local-cache/cacheService';
 
 /**
  * OSIRIS — Global Stats API
@@ -16,15 +17,18 @@ import { NextResponse } from 'next/server';
 export async function GET(req: Request) {
   try {
     const origin = new URL(req.url).origin;
+    const [gdeltRouteCache, normalizedEventsCache] = await Promise.all([
+      readLocalCache<{ total?: number; events?: unknown[] }>("gdelt-response"),
+      readLocalCache<unknown[]>("normalized-events"),
+    ]);
 
     // Fetch all internal APIs in parallel (they have their own Cache-Control TTLs)
-    const [flightsRes, satsRes, cctvRes, weatherRes, infraRes, gdeltRes] = await Promise.allSettled([
+    const [flightsRes, satsRes, cctvRes, weatherRes, infraRes] = await Promise.allSettled([
       fetch(`${origin}/api/flights`, { next: { revalidate: 45 } }),
       fetch(`${origin}/api/satellites`, { next: { revalidate: 3600 } }),
       fetch(`${origin}/api/cctv`, { next: { revalidate: 3600 } }),
       fetch(`${origin}/api/weather`, { next: { revalidate: 300 } }),
       fetch(`${origin}/api/infrastructure`, { next: { revalidate: 86400 } }),
-      fetch(`${origin}/api/gdelt`, { next: { revalidate: 300 } })
     ]);
 
     let flights = 0;
@@ -63,10 +67,11 @@ export async function GET(req: Request) {
       nuclear = data.infrastructure?.length || 0;
     }
 
-    if (gdeltRes.status === 'fulfilled' && gdeltRes.value.ok) {
-        const data = await gdeltRes.value.json();
-        incidents = data.gdelt?.length || 0;
-    }
+    incidents =
+      gdeltRouteCache?.entry.data?.total ??
+      gdeltRouteCache?.entry.data?.events?.length ??
+      normalizedEventsCache?.entry.data?.length ??
+      0;
 
     return NextResponse.json({
       stats: {

@@ -147,7 +147,7 @@ export function DeveloperSettingsPage() {
 
   async function clearDerivedCache() {
     const confirmed = window.confirm(
-      "Clear derived event, signal, and source-health cache contents? All JSON files and raw RSS source caches will be preserved.",
+      "Clear derived GDELT, event, signal, and source-health cache contents? All JSON files and raw RSS source caches will be preserved.",
     );
 
     if (!confirmed) return;
@@ -356,7 +356,7 @@ export function DeveloperSettingsPage() {
 
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
                 OSIRIS preserves raw RSS source caches and local JSON files.
-                Clearing resets only derived event, signal, and source-health
+                Clearing resets only derived GDELT, event, signal, and source-health
                 cache contents.
               </p>
             </div>

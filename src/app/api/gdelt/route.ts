@@ -4,6 +4,7 @@ import {
   readLocalCache,
   writeLocalCache,
 } from "@/lib/local-cache/cacheService";
+import type { ApiCacheMetadata } from "@/types/local-cache";
 import {
   getSourceLaneRejectionReason,
   resolveSourcePromotionPolicy,
@@ -19,6 +20,7 @@ import {
 import { readLocalConfig } from "@/lib/local-config/configService";
 import { getSourceBiasProfile } from "@/lib/source-bias";
 import {
+  buildSourceIngestionSummary,
   pullRssSources,
   writeSourceIngestionDiagnostics,
 } from "@/lib/rss-ingestion/sourcePullService";
@@ -27,11 +29,21 @@ import type {
   RssFeedConfig,
   SourcePromotionPolicy,
 } from "@/types/local-config";
-import type { SourceIngestionDiagnostics } from "@/types/source-health";
+import type {
+  SourceIngestionDiagnostics,
+  SourceIngestionRejectedSample,
+} from "@/types/source-health";
 import type { SourceBiasProfile } from "@/types/source-bias";
 
 export const dynamic = "force-dynamic";
 const DERIVED_CACHE_TTL_MINUTES = 30;
+const MAX_REJECTION_SAMPLES_PER_REASON = 3;
+const MAX_REJECTION_SAMPLES_PER_SOURCE = 18;
+const MAX_REJECTION_SAMPLE_KEYWORDS = 6;
+const MAX_REJECTION_SAMPLE_SENTENCE_LENGTH = 260;
+const ARTICLE_DIGEST_PATTERN =
+  /\b(live blog|as it happened|follow our .* live|daily digest|daily news podcast|morning briefing|evening briefing|news wrap|what you need to know|what to know|top stories|week in review|headlines for (?:[a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[a-z]+\s+\d{4}))\b/i;
+let activeGdeltCollectionPromise: Promise<GdeltRouteResponse> | null = null;
 
 /**
  * OSIRIS — RSS OSINT Incident Mapper
@@ -90,6 +102,21 @@ interface MatchedLocation {
   confidence: number;
 }
 
+interface EventSentenceMatch {
+  sentence: string;
+  matchedKeywords: string[];
+  matchedLocation: MatchedLocation;
+  hasEventAction: boolean;
+}
+
+interface ArticleQaAssessment {
+  headlineEligible: boolean;
+  isRoundupLike: boolean;
+  isMultiTopic: boolean;
+  distinctLocationCount: number;
+  matchedEventSentenceCount: number;
+}
+
 interface OsintEvent {
   id: string;
   lat: number;
@@ -131,6 +158,7 @@ interface OsintEvent {
     signalEligible: boolean;
     matchedSentence: string;
     gatesPassed: string[];
+    articleQa: ArticleQaAssessment;
   };
   metadata: {
     mapper: "rss_keyword_geo_mapper";
@@ -172,6 +200,44 @@ interface DerivedSignal {
   uncertainty: string[];
   watchNext: string[];
   relatedEventIds: string[];
+}
+
+type GdeltRequestReason =
+  | "default"
+  | "manual-refresh"
+  | "cache-miss"
+  | "stale-cache-revalidation";
+
+interface GdeltRouteResponse {
+  events: OsintEvent[];
+  derivedSignals: DerivedSignal[];
+  total: number;
+  derivedTotal: number;
+  timestamp: string;
+  source: string;
+  sourceNote?: string;
+  stale?: boolean;
+  warning?: string;
+  error?: string;
+  metadata?: {
+    fullGdeltEvent?: boolean;
+    mapper?: string;
+    feedCount?: number;
+    keywordCount?: number;
+    locationCount?: number;
+    promotedEventCount?: number;
+    mapEligibleEventCount?: number;
+    signalEligibleEventCount?: number;
+    sourceLaneCounts?: Record<string, number>;
+    cacheHitCount?: number;
+    staleCacheCount?: number;
+    failedFeedCount?: number;
+    diagnosticTotals?: Record<string, unknown>;
+    cache?: ApiCacheMetadata;
+    feeds?: Array<Record<string, unknown>>;
+    sourceDiagnostics?: SourceIngestionDiagnostics[];
+    limitations?: string[];
+  };
 }
 
 const FALLBACK_RSS_FEEDS: RssFeedConfig[] = [
@@ -816,6 +882,13 @@ function getMatchedLocation(
   text: string,
   geoDict: Record<string, GeoEntry>,
 ): MatchedLocation | null {
+  return getMatchedLocations(text, geoDict)[0] ?? null;
+}
+
+function getMatchedLocations(
+  text: string,
+  geoDict: Record<string, GeoEntry>,
+): MatchedLocation[] {
   const candidates: MatchedLocation[] = [];
 
   for (const [key, entry] of Object.entries(geoDict)) {
@@ -839,7 +912,7 @@ function getMatchedLocation(
     }
   }
 
-  if (!candidates.length) return null;
+  if (!candidates.length) return [];
 
   const precisionRank: Record<GeoPrecision, number> = {
     city: 4,
@@ -854,7 +927,7 @@ function getMatchedLocation(
     if (precisionDiff !== 0) return precisionDiff;
 
     return b.confidence - a.confidence;
-  })[0];
+  });
 }
 
 function getSeverityScore(
@@ -1212,7 +1285,12 @@ function getEventType(keywordFamilies: string[], matchedSentence: string): Event
 }
 
 function getPrimarySignalEvent(events: OsintEvent[]) {
-  return [...events].sort((a, b) => {
+  const cleanHeadlineEvents = events.filter(
+    (event) => event.promotionDecision.articleQa.headlineEligible,
+  );
+  const selectionPool = cleanHeadlineEvents.length ? cleanHeadlineEvents : events;
+
+  return [...selectionPool].sort((a, b) => {
     const severityRank: Record<SeverityLevel, number> = {
       low: 1,
       watch: 2,
@@ -1225,8 +1303,7 @@ function getPrimarySignalEvent(events: OsintEvent[]) {
     if (severityDifference !== 0) return severityDifference;
 
     const headlineQualityDifference =
-      Number(a.title.trim().endsWith("?") || isRoundupTitle(a.title)) -
-      Number(b.title.trim().endsWith("?") || isRoundupTitle(b.title));
+      Number(a.title.trim().endsWith("?")) - Number(b.title.trim().endsWith("?"));
     if (headlineQualityDifference !== 0) return headlineQualityDifference;
 
     const confidenceDifference = b.confidenceScore - a.confidenceScore;
@@ -1260,16 +1337,16 @@ function splitCandidateSentences(title: string, description: string) {
       `${title} ${summaryContext}`.trim(),
     ]),
   )
-    .map((sentence) => normalizeForSearch(sentence))
+    .map((sentence) => sentence.trim())
     .filter(Boolean);
 }
 
-function getEventSentenceMatch(
+function getArticleSentenceMatches(
   title: string,
   description: string,
   keywordWeights: KeywordWeights,
   geoDict: Record<string, GeoEntry>,
-) {
+): EventSentenceMatch[] {
   const precisionRank: Record<GeoPrecision, number> = {
     city: 4,
     region: 3,
@@ -1278,21 +1355,24 @@ function getEventSentenceMatch(
   };
 
   return splitCandidateSentences(title, description)
-    .map((sentence) => ({
-      sentence,
-      matchedKeywords: getMatchedKeywords(sentence, keywordWeights),
-      matchedLocation: getMatchedLocation(sentence, geoDict),
-      hasEventAction: hasEventAction(sentence),
-    }))
+    .map((sentence) => {
+      const normalizedSentence = normalizeForSearch(sentence);
+      const matchedKeywords = getMatchedKeywords(normalizedSentence, keywordWeights);
+      const matchedLocation = getMatchedLocation(normalizedSentence, geoDict);
+
+      return {
+        sentence,
+        matchedKeywords,
+        matchedLocation,
+        hasEventAction: hasEventAction(normalizedSentence),
+      };
+    })
     .filter(
       (
         match,
-      ): match is {
-        sentence: string;
-        matchedKeywords: string[];
-        matchedLocation: MatchedLocation;
-        hasEventAction: boolean;
-      } => Boolean(match.matchedKeywords.length && match.matchedLocation),
+      ): match is EventSentenceMatch => Boolean(
+        match.matchedKeywords.length && match.matchedLocation,
+      ),
     )
     .sort((a, b) => {
       const actionDifference =
@@ -1305,7 +1385,92 @@ function getEventSentenceMatch(
       if (precisionDifference !== 0) return precisionDifference;
 
       return b.matchedKeywords.length - a.matchedKeywords.length;
-    })[0];
+    });
+}
+
+function getEventSentenceMatch(
+  title: string,
+  description: string,
+  keywordWeights: KeywordWeights,
+  geoDict: Record<string, GeoEntry>,
+) {
+  return getArticleSentenceMatches(title, description, keywordWeights, geoDict)[0];
+}
+
+function assessArticleQa(
+  title: string,
+  description: string,
+  keywordWeights: KeywordWeights,
+  geoDict: Record<string, GeoEntry>,
+): ArticleQaAssessment {
+  const sentenceMatches = getArticleSentenceMatches(
+    title,
+    description,
+    keywordWeights,
+    geoDict,
+  );
+  const actionableMatches = sentenceMatches.filter((match) => match.hasEventAction);
+  const locationKeySource = actionableMatches.length
+    ? actionableMatches
+    : sentenceMatches;
+  const distinctLocations = new Set(
+    locationKeySource.map((match) => match.matchedLocation.key),
+  );
+  const isRoundupLike =
+    isRoundupTitle(title) || ARTICLE_DIGEST_PATTERN.test(`${title} ${description}`);
+  const isMultiTopic =
+    distinctLocations.size >= 3 ||
+    (isRoundupLike && distinctLocations.size >= 2) ||
+    (actionableMatches.length >= 3 && distinctLocations.size >= 2);
+
+  return {
+    headlineEligible: !isRoundupLike && !isMultiTopic,
+    isRoundupLike,
+    isMultiTopic,
+    distinctLocationCount: distinctLocations.size,
+    matchedEventSentenceCount: sentenceMatches.length,
+  };
+}
+
+function limitRejectionSentence(sentence: string | null) {
+  if (!sentence) return null;
+
+  const compactSentence = sentence.replace(/\s+/g, " ").trim();
+  if (compactSentence.length <= MAX_REJECTION_SAMPLE_SENTENCE_LENGTH) {
+    return compactSentence;
+  }
+
+  return `${compactSentence.slice(0, MAX_REJECTION_SAMPLE_SENTENCE_LENGTH - 1)}...`;
+}
+
+function createRejectedSample(params: {
+  reason: string;
+  title: string;
+  url: string;
+  source: string;
+  matchedKeywords?: string[];
+  matchedLocation?: MatchedLocation | null;
+  matchedSentence?: string | null;
+}): SourceIngestionRejectedSample {
+  const {
+    reason,
+    title,
+    url,
+    source,
+    matchedKeywords = [],
+    matchedLocation = null,
+    matchedSentence = null,
+  } = params;
+
+  return {
+    reason,
+    title,
+    url,
+    source,
+    matchedKeywords: matchedKeywords.slice(0, MAX_REJECTION_SAMPLE_KEYWORDS),
+    matchedLocation: matchedLocation?.label ?? null,
+    matchedSentence: limitRejectionSentence(matchedSentence),
+  };
 }
 
 function buildDerivedSignals(
@@ -1370,8 +1535,13 @@ function buildDerivedSignals(
       sources.length > 1
         ? `${sources.length} sources (${sources.join(", ")})`
         : `${sources[0]}`;
+    const hasCleanHeadlineCandidate = clusterEvents.some(
+      (event) => event.promotionDecision.articleQa.headlineEligible,
+    );
     const headlineSelectionReason =
-      "The strongest severity and confidence supporting headline";
+      hasCleanHeadlineCandidate
+        ? "Primary evidence headline came from the cleanest single-event article in the cluster"
+        : "No single-event article was available, so the strongest supporting headline was used";
 
     derivedSignals.push({
       id: `signal-${clusterKey.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${fetchedAt.slice(
@@ -1443,6 +1613,59 @@ function extractFeedItems(xml: string): string[] {
   return [...rssItems, ...atomEntries];
 }
 
+function withGdeltCacheMetadata(
+  payload: GdeltRouteResponse,
+  cache: ApiCacheMetadata,
+): GdeltRouteResponse {
+  const nextWarning = cache.warning ?? payload.warning;
+
+  return {
+    ...payload,
+    stale: cache.mode === "stale-cache" || cache.mode === "fallback",
+    warning: nextWarning,
+    sourceNote: nextWarning ?? payload.sourceNote,
+    metadata: {
+      ...payload.metadata,
+      cache: {
+        ...(payload.metadata?.cache ?? {}),
+        ...cache,
+      },
+    },
+  };
+}
+
+function createGdeltResponse(payload: GdeltRouteResponse, status = 200) {
+  return NextResponse.json(payload, {
+    status,
+    headers: {
+      "Cache-Control":
+        status >= 400
+          ? "no-store"
+          : "public, s-maxage=300, stale-while-revalidate=600",
+    },
+  });
+}
+
+async function getLiveGdeltPayload(
+  requestReason: GdeltRequestReason,
+): Promise<{ payload: GdeltRouteResponse; sharedJob: boolean }> {
+  let sharedJob = true;
+
+  if (!activeGdeltCollectionPromise) {
+    sharedJob = false;
+    activeGdeltCollectionPromise = collectLiveGdeltResponse(requestReason).finally(
+      () => {
+        activeGdeltCollectionPromise = null;
+      },
+    );
+  }
+
+  return {
+    payload: await activeGdeltCollectionPromise,
+    sharedJob,
+  };
+}
+
 function createSourceDiagnostics(
   feedId: string,
   processedAt: string,
@@ -1450,23 +1673,55 @@ function createSourceDiagnostics(
   return {
     feedId,
     processedAt,
+    processedItems: 0,
     totalItems: 0,
     acceptedItems: 0,
+    candidateRejectedItems: 0,
     rejectedItems: 0,
+    excludedItems: 0,
     rejectionReasons: {},
+    excludedReasons: {},
+    rejectedSamples: [],
   };
 }
 
-function recordRejection(
+function recordCandidateRejection(
+  diagnostics: SourceIngestionDiagnostics,
+  reason: string,
+  sample?: SourceIngestionRejectedSample,
+) {
+  diagnostics.candidateRejectedItems += 1;
+  diagnostics.rejectedItems = diagnostics.candidateRejectedItems;
+  diagnostics.rejectionReasons[reason] =
+    (diagnostics.rejectionReasons[reason] ?? 0) + 1;
+
+  if (!sample || diagnostics.rejectedSamples.length >= MAX_REJECTION_SAMPLES_PER_SOURCE) {
+    return;
+  }
+
+  const reasonSampleCount = diagnostics.rejectedSamples.filter(
+    (rejectedSample) => rejectedSample.reason === reason,
+  ).length;
+
+  if (reasonSampleCount >= MAX_REJECTION_SAMPLES_PER_REASON) {
+    return;
+  }
+
+  diagnostics.rejectedSamples.push(sample);
+}
+
+function recordExclusion(
   diagnostics: SourceIngestionDiagnostics,
   reason: string,
 ) {
-  diagnostics.rejectedItems += 1;
-  diagnostics.rejectionReasons[reason] =
-    (diagnostics.rejectionReasons[reason] ?? 0) + 1;
+  diagnostics.excludedItems += 1;
+  diagnostics.excludedReasons[reason] =
+    (diagnostics.excludedReasons[reason] ?? 0) + 1;
 }
 
-export async function GET() {
+async function collectLiveGdeltResponse(
+  requestReason: GdeltRequestReason,
+): Promise<GdeltRouteResponse> {
   const fetchedAtDate = new Date();
   const fetchedAt = fetchedAtDate.toISOString();
 
@@ -1490,14 +1745,22 @@ export async function GET() {
       sourceDiagnostics.push(diagnostics);
 
       if (!pullResult.xml) {
-        diagnostics.rejectionReasons.source_pull_failed = 1;
         continue;
       }
 
       const items = extractFeedItems(pullResult.xml);
       diagnostics.totalItems = items.length;
+      diagnostics.processedItems = items.length;
 
       for (const item of items) {
+        if (!sourcePolicy.mapEligible && !sourcePolicy.signalEligible) {
+          recordExclusion(
+            diagnostics,
+            getSourceLaneRejectionReason(sourcePolicy.lane),
+          );
+          continue;
+        }
+
         const rawTitle = extractTag(item, "title");
         const rawLink = extractLink(item);
         const rawDesc =
@@ -1507,7 +1770,7 @@ export async function GET() {
           "";
 
         if (!rawTitle || !rawLink) {
-          recordRejection(diagnostics, "missing_title_or_link");
+          recordCandidateRejection(diagnostics, "missing_title_or_link");
           continue;
         }
 
@@ -1519,21 +1782,63 @@ export async function GET() {
           publishedAt,
           fetchedAtDate,
         );
+        const fullTextToSearch = normalizeForSearch(`${title} ${description}`);
+        const fullTextKeywords = getMatchedKeywords(
+          fullTextToSearch,
+          keywordWeights,
+        );
+        const fullTextLocation = getMatchedLocation(fullTextToSearch, geoDict);
+        const articleQa = assessArticleQa(
+          title,
+          description,
+          keywordWeights,
+          geoDict,
+        );
 
-        if (isRoundupTitle(title)) {
-          recordRejection(diagnostics, "multi_event_roundup");
+        if (articleQa.isRoundupLike) {
+          recordCandidateRejection(
+            diagnostics,
+            "multi_event_roundup",
+            createRejectedSample({
+              reason: "multi_event_roundup",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords: fullTextKeywords,
+              matchedLocation: fullTextLocation,
+            }),
+          );
+          continue;
+        }
+
+        if (articleQa.isMultiTopic) {
+          recordCandidateRejection(
+            diagnostics,
+            "multi_topic_article",
+            createRejectedSample({
+              reason: "multi_topic_article",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords: fullTextKeywords,
+              matchedLocation: fullTextLocation,
+            }),
+          );
           continue;
         }
 
         if (isNonEventTitle(title)) {
-          recordRejection(diagnostics, "non_event_article");
-          continue;
-        }
-
-        if (!sourcePolicy.mapEligible && !sourcePolicy.signalEligible) {
-          recordRejection(
+          recordCandidateRejection(
             diagnostics,
-            getSourceLaneRejectionReason(sourcePolicy.lane),
+            "non_event_article",
+            createRejectedSample({
+              reason: "non_event_article",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords: fullTextKeywords,
+              matchedLocation: fullTextLocation,
+            }),
           );
           continue;
         }
@@ -1543,12 +1848,34 @@ export async function GET() {
           articleAgeMinutes !== null &&
           articleAgeMinutes > sourcePolicy.maxAgeHours * 60
         ) {
-          recordRejection(diagnostics, "outside_freshness_window");
+          recordCandidateRejection(
+            diagnostics,
+            "outside_freshness_window",
+            createRejectedSample({
+              reason: "outside_freshness_window",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords: fullTextKeywords,
+              matchedLocation: fullTextLocation,
+            }),
+          );
           continue;
         }
 
         if (acceptedUrls.has(url)) {
-          recordRejection(diagnostics, "duplicate_url");
+          recordCandidateRejection(
+            diagnostics,
+            "duplicate_url",
+            createRejectedSample({
+              reason: "duplicate_url",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords: fullTextKeywords,
+              matchedLocation: fullTextLocation,
+            }),
+          );
           continue;
         }
 
@@ -1560,24 +1887,60 @@ export async function GET() {
         );
 
         if (!eventSentenceMatch) {
-          const textToSearch = normalizeForSearch(`${title} ${description}`);
-          const fullTextKeywords = getMatchedKeywords(
-            textToSearch,
-            keywordWeights,
-          );
-
           if (!fullTextKeywords.length) {
-            recordRejection(diagnostics, "no_keyword_match");
-          } else if (!getMatchedLocation(textToSearch, geoDict)) {
-            recordRejection(diagnostics, "no_location_match");
+            recordCandidateRejection(
+              diagnostics,
+              "no_keyword_match",
+              createRejectedSample({
+                reason: "no_keyword_match",
+                title,
+                url,
+                source: feed.name,
+              }),
+            );
+          } else if (!fullTextLocation) {
+            recordCandidateRejection(
+              diagnostics,
+              "no_location_match",
+              createRejectedSample({
+                reason: "no_location_match",
+                title,
+                url,
+                source: feed.name,
+                matchedKeywords: fullTextKeywords,
+              }),
+            );
           } else {
-            recordRejection(diagnostics, "no_event_location_cooccurrence");
+            recordCandidateRejection(
+              diagnostics,
+              "no_event_location_cooccurrence",
+              createRejectedSample({
+                reason: "no_event_location_cooccurrence",
+                title,
+                url,
+                source: feed.name,
+                matchedKeywords: fullTextKeywords,
+                matchedLocation: fullTextLocation,
+              }),
+            );
           }
           continue;
         }
 
         if (sourcePolicy.requireEventAction && !eventSentenceMatch.hasEventAction) {
-          recordRejection(diagnostics, "no_event_action");
+          recordCandidateRejection(
+            diagnostics,
+            "no_event_action",
+            createRejectedSample({
+              reason: "no_event_action",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords: eventSentenceMatch.matchedKeywords,
+              matchedLocation: eventSentenceMatch.matchedLocation,
+              matchedSentence: eventSentenceMatch.sentence,
+            }),
+          );
           continue;
         }
 
@@ -1587,7 +1950,19 @@ export async function GET() {
             fetchedAtDate.getUTCFullYear(),
           )
         ) {
-          recordRejection(diagnostics, "historical_reference");
+          recordCandidateRejection(
+            diagnostics,
+            "historical_reference",
+            createRejectedSample({
+              reason: "historical_reference",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords: eventSentenceMatch.matchedKeywords,
+              matchedLocation: eventSentenceMatch.matchedLocation,
+              matchedSentence: eventSentenceMatch.sentence,
+            }),
+          );
           continue;
         }
 
@@ -1595,7 +1970,18 @@ export async function GET() {
         const matchedLocation = eventSentenceMatch.matchedLocation;
 
         if (!matchedKeywords.length) {
-          recordRejection(diagnostics, "no_keyword_match");
+          recordCandidateRejection(
+            diagnostics,
+            "no_keyword_match",
+            createRejectedSample({
+              reason: "no_keyword_match",
+              title,
+              url,
+              source: feed.name,
+              matchedLocation,
+              matchedSentence: eventSentenceMatch.sentence,
+            }),
+          );
           continue;
         }
 
@@ -1616,7 +2002,19 @@ export async function GET() {
          * automatically become an OSIRIS incident unless other strong terms exist.
          */
         if (severityScore < 17) {
-          recordRejection(diagnostics, "below_severity_threshold");
+          recordCandidateRejection(
+            diagnostics,
+            "below_severity_threshold",
+            createRejectedSample({
+              reason: "below_severity_threshold",
+              title,
+              url,
+              source: feed.name,
+              matchedKeywords,
+              matchedLocation,
+              matchedSentence: eventSentenceMatch.sentence,
+            }),
+          );
           continue;
         }
 
@@ -1718,6 +2116,7 @@ export async function GET() {
             mapEligible: sourcePolicy.mapEligible,
             signalEligible: sourcePolicy.signalEligible,
             matchedSentence: eventSentenceMatch.sentence,
+            articleQa,
             gatesPassed: [
               "source_lane_eligible",
               "within_freshness_window",
@@ -1749,18 +2148,112 @@ export async function GET() {
     );
     const derivedSignals = buildDerivedSignals(signalEligibleEvents, fetchedAt);
     await writeSourceIngestionDiagnostics(sourceDiagnostics);
+    const sourceDiagnosticsByFeedId = new Map(
+      sourceDiagnostics.map((diagnostics) => [
+        diagnostics.feedId,
+        diagnostics,
+      ]),
+    );
+    const ingestionSummary = buildSourceIngestionSummary(
+      pullResults.map((result) => {
+        const promotionPolicy = resolveSourcePromotionPolicy(result.feed);
+
+        return {
+          category: result.feed.category,
+          sourceLane: promotionPolicy.lane,
+          ingestion: sourceDiagnosticsByFeedId.get(result.feed.id) ?? null,
+        };
+      }),
+    );
+
+    const basePayload: GdeltRouteResponse = {
+      events: allEvents,
+      derivedSignals,
+      total: allEvents.length,
+      derivedTotal: derivedSignals.length,
+      timestamp: fetchedAt,
+      source: "RSS_OSINT_MAPPING",
+      sourceNote:
+        "This route uses deterministic source lanes, freshness gates, contextual keyword matching, and sentence-level event/location promotion. It is not full GDELT event intelligence.",
+      metadata: {
+        fullGdeltEvent: false,
+        mapper: "rss_keyword_geo_mapper",
+        feedCount: rssFeeds.length,
+        keywordCount: Object.keys(keywordWeights).length,
+        locationCount: Object.keys(geoDict).length,
+        promotedEventCount: allEvents.length,
+        mapEligibleEventCount: allEvents.filter(
+          (event) => event.metadata.mapEligible,
+        ).length,
+        signalEligibleEventCount: signalEligibleEvents.length,
+        sourceLaneCounts: rssFeeds.reduce<Record<string, number>>(
+          (counts, feed) => {
+            const lane = resolveSourcePromotionPolicy(feed).lane;
+            counts[lane] = (counts[lane] ?? 0) + 1;
+            return counts;
+          },
+          {},
+        ),
+        cacheHitCount: pullResults.filter((result) => result.fromCache).length,
+        staleCacheCount: pullResults.filter((result) => result.isStale).length,
+        failedFeedCount: pullResults.filter(
+          (result) => result.pullStatus === "error",
+        ).length,
+        diagnosticTotals: {
+          totalItems: ingestionSummary.processedItemCount,
+          processedItems: ingestionSummary.processedItemCount,
+          acceptedItems: ingestionSummary.acceptedItemCount,
+          rejectedItems: ingestionSummary.candidateRejectedItemCount,
+          candidateRejectedItems:
+            ingestionSummary.candidateRejectedItemCount,
+          excludedItems: ingestionSummary.excludedItemCount,
+          topReasons: ingestionSummary.topRejectionReasons,
+          topRejectionReasons: ingestionSummary.topRejectionReasons,
+          topExcludedReasons: ingestionSummary.topExcludedReasons,
+          laneRollups: ingestionSummary.ingestionByLane,
+          categoryRollups: ingestionSummary.ingestionByCategory,
+        },
+        feeds: pullResults.map((result) => ({
+          id: result.feed.id,
+          source: result.feed.name,
+          url: result.feed.url,
+          category: result.feed.category,
+          tags: result.feed.tags,
+          reliability: result.feed.reliabilityWeight,
+          refreshIntervalMinutes: result.feed.refreshIntervalMinutes,
+          promotionPolicy: resolveSourcePromotionPolicy(result.feed),
+          pullStatus: result.pullStatus,
+          itemCount: result.itemCount,
+          lastSuccessAt: result.lastSuccessAt,
+          nextRefreshAt: result.nextRefreshAt,
+          error: result.error,
+        })),
+        sourceDiagnostics,
+        limitations: [
+          "Promotion is deterministic and conservative, but contextual keyword matching can still produce false positives.",
+          "Location matching is dictionary-based; unsafe short aliases are ignored and accepted locations may still be approximate.",
+          "Country-level and actor-proxy matches are not exact event coordinates.",
+          "Technology, cyber, weather, natural-hazard, business, finance, and good-news lanes are excluded from the global incident mapper by default.",
+          "Source spectrum and editorial perspective are retained as evidence context and do not control event promotion.",
+        ],
+      },
+    };
 
     let cacheWarning: string | null = null;
-    let normalizedEventsCache:
-      | Awaited<ReturnType<typeof writeLocalCache<OsintEvent[]>>>
+    let gdeltRouteCache:
+      | Awaited<ReturnType<typeof writeLocalCache<GdeltRouteResponse>>>
       | null = null;
     try {
-      [normalizedEventsCache] = await Promise.all([
+      [, , gdeltRouteCache] = await Promise.all([
         writeLocalCache("normalized-events", allEvents, {
           ttlMinutes: DERIVED_CACHE_TTL_MINUTES,
           source: "rss-osint-mapper",
         }),
         writeLocalCache("generated-signals", derivedSignals, {
+          ttlMinutes: DERIVED_CACHE_TTL_MINUTES,
+          source: "rss-osint-mapper",
+        }),
+        writeLocalCache("gdelt-response", basePayload, {
           ttlMinutes: DERIVED_CACHE_TTL_MINUTES,
           source: "rss-osint-mapper",
         }),
@@ -1772,82 +2265,20 @@ export async function GET() {
       console.warn(`[OSIRIS] ${cacheWarning}`);
     }
 
-    return NextResponse.json(
-      {
-        events: allEvents,
-        derivedSignals,
-        total: allEvents.length,
-        derivedTotal: derivedSignals.length,
-        timestamp: fetchedAt,
-        source: "RSS_OSINT_MAPPING",
-        sourceNote:
-          "This route uses deterministic source lanes, freshness gates, contextual keyword matching, and sentence-level event/location promotion. It is not full GDELT event intelligence.",
-        metadata: {
-          fullGdeltEvent: false,
-          mapper: "rss_keyword_geo_mapper",
-          feedCount: rssFeeds.length,
-          keywordCount: Object.keys(keywordWeights).length,
-          locationCount: Object.keys(geoDict).length,
-          promotedEventCount: allEvents.length,
-          mapEligibleEventCount: allEvents.filter(
-            (event) => event.metadata.mapEligible,
-          ).length,
-          signalEligibleEventCount: signalEligibleEvents.length,
-          sourceLaneCounts: rssFeeds.reduce<Record<string, number>>(
-            (counts, feed) => {
-              const lane = resolveSourcePromotionPolicy(feed).lane;
-              counts[lane] = (counts[lane] ?? 0) + 1;
-              return counts;
-            },
-            {},
-          ),
-          cacheHitCount: pullResults.filter((result) => result.fromCache).length,
-          staleCacheCount: pullResults.filter((result) => result.isStale).length,
-          failedFeedCount: pullResults.filter(
-            (result) => result.pullStatus === "error",
-          ).length,
-          cache: {
-            mode: "live",
-            updatedAt: normalizedEventsCache?.updatedAt ?? fetchedAt,
-            expiresAt:
-              normalizedEventsCache?.expiresAt ??
-              new Date(
-                fetchedAtDate.getTime() + DERIVED_CACHE_TTL_MINUTES * 60_000,
-              ).toISOString(),
-            isStale: false,
-            warning: cacheWarning,
-          },
-          feeds: pullResults.map((result) => ({
-            id: result.feed.id,
-            source: result.feed.name,
-            url: result.feed.url,
-            category: result.feed.category,
-            tags: result.feed.tags,
-            reliability: result.feed.reliabilityWeight,
-            refreshIntervalMinutes: result.feed.refreshIntervalMinutes,
-            promotionPolicy: resolveSourcePromotionPolicy(result.feed),
-            pullStatus: result.pullStatus,
-            itemCount: result.itemCount,
-            lastSuccessAt: result.lastSuccessAt,
-            nextRefreshAt: result.nextRefreshAt,
-            error: result.error,
-          })),
-          sourceDiagnostics,
-          limitations: [
-            "Promotion is deterministic and conservative, but contextual keyword matching can still produce false positives.",
-            "Location matching is dictionary-based; unsafe short aliases are ignored and accepted locations may still be approximate.",
-            "Country-level and actor-proxy matches are not exact event coordinates.",
-            "Technology, cyber, weather, natural-hazard, business, finance, and good-news lanes are excluded from the global incident mapper by default.",
-            "Source spectrum and editorial perspective are retained as evidence context and do not control event promotion.",
-          ],
-        },
-      },
-      {
-        headers: {
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
-        },
-      },
-    );
+    return withGdeltCacheMetadata(basePayload, {
+      mode: "live",
+      updatedAt: gdeltRouteCache?.updatedAt ?? fetchedAt,
+      expiresAt:
+        gdeltRouteCache?.expiresAt ??
+        new Date(
+          fetchedAtDate.getTime() + DERIVED_CACHE_TTL_MINUTES * 60_000,
+        ).toISOString(),
+      isStale: false,
+      warning: cacheWarning,
+      servedFrom: "live-network",
+      requestReason,
+      sharedJob: false,
+    });
   } catch (error) {
     console.error("RSS OSINT mapper error:", error);
 
@@ -1871,49 +2302,117 @@ export async function GET() {
         fetchedAt;
       const warning = `Live RSS collection failed. Showing last known derived data: ${message}`;
 
-      return NextResponse.json({
-        events,
-        derivedSignals,
-        total: events.length,
-        derivedTotal: derivedSignals.length,
-        timestamp: cacheTimestamp,
-        source: "RSS_OSINT_MAPPING_CACHE",
-        stale: true,
-        warning,
-        sourceNote: warning,
-        metadata: {
-          fullGdeltEvent: false,
-          mapper: "rss_keyword_geo_mapper",
-          cacheHitCount: 0,
-          staleCacheCount: 1,
-          failedFeedCount: 0,
-          cache: {
-            mode: "stale-cache",
-            updatedAt: cacheTimestamp,
-            expiresAt: cacheExpiresAt,
-            isStale: true,
-            warning,
+      return withGdeltCacheMetadata(
+        {
+          events,
+          derivedSignals,
+          total: events.length,
+          derivedTotal: derivedSignals.length,
+          timestamp: cacheTimestamp,
+          source: "RSS_OSINT_MAPPING_CACHE",
+          metadata: {
+            fullGdeltEvent: false,
+            mapper: "rss_keyword_geo_mapper",
+            cacheHitCount: 0,
+            staleCacheCount: 1,
+            failedFeedCount: 0,
+            limitations: [
+              "Live collection failed; this response contains last known derived data.",
+              "Keyword matching can produce false positives.",
+              "Location matching is dictionary-based and may be approximate.",
+            ],
           },
-          limitations: [
-            "Live collection failed; this response contains last known derived data.",
-            "Keyword matching can produce false positives.",
-            "Location matching is dictionary-based and may be approximate.",
-          ],
         },
-      });
+        {
+          mode: "fallback",
+          updatedAt: cacheTimestamp,
+          expiresAt: cacheExpiresAt,
+          isStale: true,
+          warning,
+          servedFrom: "fallback-cache",
+          requestReason,
+          sharedJob: false,
+        },
+      );
     }
 
-    return NextResponse.json(
+    throw new Error(message);
+  }
+}
+
+export async function GET(request: Request) {
+  const refresh =
+    new URL(request.url).searchParams.get("refresh") === "true";
+  const cachedRoute = await readLocalCache<GdeltRouteResponse>("gdelt-response");
+
+  if (!refresh && cachedRoute?.entry.data && !cachedRoute.isStale) {
+    return createGdeltResponse(
+      withGdeltCacheMetadata(cachedRoute.entry.data, {
+        mode: "fresh-cache",
+        updatedAt: cachedRoute.entry.updatedAt,
+        expiresAt: cachedRoute.entry.expiresAt,
+        isStale: false,
+        warning: null,
+        servedFrom: "fresh-local-cache",
+        requestReason: "default",
+        sharedJob: false,
+      }),
+    );
+  }
+
+  const requestReason: GdeltRequestReason = refresh
+    ? "manual-refresh"
+    : cachedRoute?.entry.data
+      ? "stale-cache-revalidation"
+      : "cache-miss";
+
+  try {
+    const { payload, sharedJob } = await getLiveGdeltPayload(requestReason);
+
+    return createGdeltResponse(
+      withGdeltCacheMetadata(payload, {
+        ...(payload.metadata?.cache ?? {
+          mode: "live",
+          updatedAt: payload.timestamp,
+          expiresAt: payload.timestamp,
+          isStale: false,
+          warning: null,
+        }),
+        servedFrom: "live-network",
+        requestReason,
+        sharedJob,
+      }),
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to fetch RSS OSINT data";
+
+    if (cachedRoute?.entry.data) {
+      return createGdeltResponse(
+        withGdeltCacheMetadata(cachedRoute.entry.data, {
+          mode: "stale-cache",
+          updatedAt: cachedRoute.entry.updatedAt,
+          expiresAt: cachedRoute.entry.expiresAt,
+          isStale: true,
+          warning: `Live RSS collection failed. Showing stale cached route data: ${message}`,
+          servedFrom: "stale-local-cache",
+          requestReason,
+          sharedJob: false,
+        }),
+      );
+    }
+
+    return createGdeltResponse(
       {
         events: [],
         derivedSignals: [],
         total: 0,
         derivedTotal: 0,
-        timestamp: fetchedAt,
+        timestamp: new Date().toISOString(),
         source: "RSS_OSINT_MAPPING",
         error: message,
       },
-      { status: 500 },
+      500,
     );
   }
 }
